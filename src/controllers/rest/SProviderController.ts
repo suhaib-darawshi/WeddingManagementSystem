@@ -1,4 +1,4 @@
-import { BodyParams, MultipartFile, PathParams, PlatformMulterFile, Req, Use } from "@tsed/common";
+import { BodyParams, MulterOptions, MultipartFile, PathParams, PlatformMulterFile, Req, Use } from "@tsed/common";
 import {Controller, Inject} from "@tsed/di";
 import { BadRequest, Unauthorized } from "@tsed/exceptions";
 import {Get, Post, Put} from "@tsed/schema";

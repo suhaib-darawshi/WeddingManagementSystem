@@ -3,35 +3,47 @@ import { Order } from "../models/OrderModel";
 import { MongooseModel } from "@tsed/mongoose";
 import { BadRequest, Unauthorized } from "@tsed/exceptions";
 import { CustomSocketService } from "./CustomSocketService";
-import { Service } from "src/models/ServiceModel";
+import { Service } from "../models/ServiceModel";
+import { NotificationService } from "./NotificationService";
+import { ServiceProvider } from "../models/ServiceProviderModel";
+import { User } from "../models/UserModel";
 
 @Injectable()
 export class BookingService {
-    constructor(@Inject(Order)private orderModel:MongooseModel<Order>,@Inject(CustomSocketService)private socket:CustomSocketService){}
+    constructor(
+        @Inject(Order)private orderModel:MongooseModel<Order>,
+        @Inject(CustomSocketService)private socket:CustomSocketService,
+        @Inject(NotificationService)private notService:NotificationService
+        ){}
     async addOrder(order:Partial<Order>){
         return await this.orderModel.create(order);
     }
     async acceptOrder(orderId:string,user:string){
 
-        const order=await this.orderModel.findById(orderId).populate({path:"service_id",model:"Service"});
+        const order=await this.orderModel.findById(orderId).populate([{path:"service_id",model:"Service",populate:{model:"ServiceProvider",path:"provider_id"}},{path:"customer_id",model:"User"}]);
         if(!order){
             throw new BadRequest("Order Not Found");
         }
-        if((order.service_id as Service).provider_id!=user){
+        if(((order.service_id as Service).provider_id as ServiceProvider)._id!=user){
             throw new Unauthorized("Order Does Not Belong To you")
         }
         order.status="ACCEPTED";
         await order.save();
-        this.socket.sendEventToClient((order.customer_id.toString()),order,"Order Accepted");
+        await this.notService.createNotification({type:"Order Accepted",user_id:order.customer_id,message:`${((order.service_id as Service).provider_id as ServiceProvider).username} has accepted your order for ${(order.service_id as Service).title}`});
+        this.socket.sendEventToClient(((order.customer_id as User)._id.toString()),order,"Order Accepted");
 
     }
-    async rejecttOrder(orderId:string){
+    async rejecttOrder(orderId:string,user:string){
         const order=await this.orderModel.findById(orderId).populate({path:"service_id",model:"Service"})
         if(!order){
             throw new BadRequest("Order Not Found");
         }
+        if(((order.service_id as Service).provider_id as ServiceProvider)._id!=user){
+            throw new Unauthorized("Order Does Not Belong To you")
+        }
         order.status="REJECTED";
         await order.save();
-        this.socket.sendEventToClient((order.customer_id.toString()),order,"Order Rejected");
+        await this.notService.createNotification({type:"Order Rejected",user_id:order.customer_id,message:`${((order.service_id as Service).provider_id as ServiceProvider).username} has rejected your order for ${(order.service_id as Service).title}`});
+        this.socket.sendEventToClient(((order.customer_id as User)._id.toString()),order,"Order Rejected");
     }
 }

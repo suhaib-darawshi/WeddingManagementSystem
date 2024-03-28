@@ -17,7 +17,6 @@ export class JwtMiddleware {
         response.status(401).send({ message: "Failed to authenticate token." });
         return;
       }
-
       request.user = decoded as User; 
       next();
     });

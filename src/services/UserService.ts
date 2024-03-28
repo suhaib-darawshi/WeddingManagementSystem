@@ -46,7 +46,18 @@ export class UserService {
 
         }
     }
-
+    
+    async forgetPassword(phone:string){
+        const u=await this.userModel.findOne({phone:phone});
+        if(!u){
+            throw  new Exceptions.NotFound('USER_NOT_FOUND');
+        }
+        const x: string = (Math.random() * 899999 + 100000).toFixed(0);
+        console.log(x);
+        u.password=x;
+        // TODO : send sms to verify
+        return this.auth.generateToken(u);
+    }
     async signup(user:User){
         const u=await this.userModel.findOne({$or:[
             {phone:user.phone}
@@ -66,6 +77,24 @@ export class UserService {
         user.password=x;
         // TODO : send sms to verify
         return this.auth.generateToken(user);
+    }
+    async verifyCode(uid:string){
+        const user=await this.userModel.findById(uid);
+        if(!user){
+            throw  new Exceptions.BadRequest("USER_NOT_FOUND");
+        }
+        return this.auth.generateToken(user);
+    }
+    async updatePassword(uid:string,pass:string){
+        const  user=await this.userModel.findById(uid);
+        if(!user){
+            throw new Exceptions.BadRequest("USER_NOT_FOUND");
+        }
+        user.password=await this.hashPassword(pass);
+        await user.save();
+        user.password=pass;
+        return await this.signin(user);
+
     }
     async signin(user:User){
         const u= await this.userModel.findOne({phone:user.phone}).lean();
@@ -98,36 +127,66 @@ export class UserService {
             {
                 $lookup: {
                     from: "notifications",
-                    localField: "_id",
-                    foreignField: "user_id", 
-                    as: "notifications",
+                    let: { userId: "$_id" },
                     pipeline:[
+                        {
+                      $match: {
+                        $expr: {
+                          $eq: ["$$userId", "$user_id"] 
+                        }
+                      }
+                    },
                         { $sort: { createdAt: -1 } }
-                      ]
+                      ],
+                      as: "notifications",
                 }
             },
             {
                 $lookup: {
                     from: "orders",
-                    localField: "_id",
-                    foreignField: "customer_id", 
+                    let: { customer_id: "$_id" },
                     as: "orders",
                     pipeline:[
                         {
+                            $match: {
+                              $expr: {
+                                $eq: ["$$customer_id", "$customer_id"] 
+                              }
+                            }
+                          },
+                        {
                             $lookup:{
                                 from:"services",
-                                localField:"service_id",
-                                foreignField:"_id",
+                                let: { service_id: "$service_id" },
+
                                 as:"service",
                                 
                                 pipeline:[
                                     {
+                                        $match: {
+                                          $expr: {
+                                            $eq: ["$$service_id", "$_id"] 
+                                          }
+                                        }
+                                      },
+                                      {
+                                        $limit:1
+                                      },
+                                    {
                                         $lookup:{
                                             from:"serviceproviders",
-                                            localField:"provider_id",
-                                            foreignField:"_id",
+                                            // localField:"provider_id",
+                                            // foreignField:"_id",
+                                            let:{provider_id: "$provider_id"},
                                             as:"provider",
                                             pipeline:[
+                                                {
+                                                    $match: {
+                                                      $expr: {
+                                                        $eq: ["$$provider_id", "$_id"] 
+                                                      }
+                                                    }
+                                                  },
                                                 {
                                                     $set:{"password":0}
                                                 }
@@ -160,8 +219,15 @@ export class UserService {
                     {
                         $lookup: {
                           from: "users", 
-                          localField: "users",
-                          foreignField: "_id",
+                          let:{userss:"$users"},
+                          pipeline:[{
+                            $match: {
+                                $expr: {
+                                  $in: ["$_id", "$$userss"] 
+                                }
+                              }
+                          }],
+                          
                           as: "users"
                         }
                       },
@@ -169,10 +235,16 @@ export class UserService {
                       {
                         $lookup: {
                           from: "messages", 
-                          localField: "messages",
-                          foreignField: "_id",
+                          let:{messagess:"$messages"},
                           as: "messages",
                           pipeline:[
+                            {
+                                $match: {
+                                    $expr: {
+                                      $in: ["$_id", "$$messagess"] 
+                                    }
+                                  }
+                              },
                             { $sort: { createdAt: -1 } }
                           ]
                         },

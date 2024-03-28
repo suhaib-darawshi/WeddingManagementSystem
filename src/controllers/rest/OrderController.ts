@@ -20,7 +20,13 @@ export class OrderController {
     return await this.userService.bookService(order,service,req.user?._id!);
   }
   @Post("/:id/accept")
+  @Use(JwtMiddleware)
   async acceptOrder(@MultipartFile("file")file:PlatformMulterFile,@PathParams("id")order:string,@Req()req:Req){
     return await this.bookingService.acceptOrder(order,req.user!._id!)
+  }
+  @Post("/:id/reject")
+  @Use(JwtMiddleware)
+  async rejectOrder(@MultipartFile("file")file:PlatformMulterFile,@PathParams("id")order:string,@Req()req:Req){
+    return await this.bookingService.rejecttOrder(order,req.user!._id!)
   }
 }

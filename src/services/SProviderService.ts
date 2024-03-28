@@ -57,6 +57,7 @@ export class SProviderService {
             provider.logo = path.join('public','uploads', provider._id.toString(), `logo${originalExtension}`);
             await provider.save();
           }
+          await this.userModel.create(user);
         return  {user : await this.getUserInfo(provider),token:this.auth.generateToken(provider)};;
     }
 
@@ -72,35 +73,67 @@ export class SProviderService {
             {
                 $lookup: {
                     from: "notifications",
-                    localField: "_id",
-                    foreignField: "user_id", 
-                    as: "notifications",
+                    let: { userId: "$_id" },
                     pipeline:[
+                        {
+                      $match: {
+                        $expr: {
+                          $eq: ["$$userId", "$user_id"] 
+                        }
+                      }
+                    },
                         { $sort: { createdAt: -1 } }
-                      ]
+                      ],
+                                            as: "notifications",
+
                 }
             },
             {
                 $lookup: {
                     from: "services",
-                    localField: "_id",
-                    foreignField: "provider_id", 
+                    // localField: "_id",
+                    // foreignField: "provider_id",
+                    let:{provider:"$_id"}, 
                     as: "services",
                     pipeline:[
                         {
+                            $match:{
+                                $expr:{
+                                    $eq:["$$provider",'$provider_id']
+                                }
+                            }
+                        },
+                        {
                             $lookup:{
                                 from: "orders",
-                                localField: "_id",
-                                foreignField: "service_id", 
+                                // localField: "_id",
+                                // foreignField: "service_id", 
+                                let:{service:"$_id"},
                                 as: "orders",
                                 pipeline:[
                                     {
+                                        $match:{
+                                            $expr:{
+                                                $eq:["$$service","$service_id"]
+                                            }
+                                        }
+                                    },
+                                    {
+                                        
                                         $lookup: {
                                           from: "users",
-                                          localField: "customer_id", 
-                                          foreignField: "_id", 
+                                        //   localField: "customer_id", 
+                                        //   foreignField: "_id", 
+                                          let:{customer:"$customer_id"},
                                           as: "customer" ,
                                           pipeline:[
+                                            {
+                                                $match:{
+                                                    $expr:{
+                                                        eq:["$$customer","$_id"]
+                                                    }
+                                                }
+                                            },
                                             {
                                                 $set:{"password":0}
                                             }
@@ -133,8 +166,15 @@ export class SProviderService {
                     {
                         $lookup: {
                           from: "users", 
-                          localField: "users",
-                          foreignField: "_id",
+                          let:{userss:"$users"},
+                          pipeline:[{
+                            $match: {
+                                $expr: {
+                                  $in: ["$_id", "$$userss"] 
+                                }
+                              }
+                          }],
+                          
                           as: "users"
                         }
                       },
@@ -142,10 +182,16 @@ export class SProviderService {
                       {
                         $lookup: {
                           from: "messages", 
-                          localField: "messages",
-                          foreignField: "_id",
+                          let:{messagess:"$messages"},
                           as: "messages",
                           pipeline:[
+                            {
+                                $match: {
+                                    $expr: {
+                                      $in: ["$_id", "$$messagess"] 
+                                    }
+                                  }
+                              },
                             { $sort: { createdAt: -1 } }
                           ]
                         },

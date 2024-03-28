@@ -9,6 +9,8 @@
     "start:prod": "cross-env NODE_ENV=production node dist/index.js"
   },
   "dependencies": {
+    "@babel/polyfill": "^7.12.1",
+    "@tap-payments/gosell": "^2.0.2",
     "@tsed/ajv": "^7.63.0",
     "@tsed/common": "^7.63.0",
     "@tsed/core": "^7.63.0",

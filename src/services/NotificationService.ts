@@ -8,7 +8,7 @@ import mongoose from "mongoose";
 export class NotificationService {
     constructor(@Inject(Notification)private notModel:MongooseModel<Notification>){}
     async createNotification(notification : Partial<Notification>) {
-
+        return await this.notModel.create(notification);
     }
     async setNotsAsSeen(userId:string){
         const nots=await this.notModel.find({user_id:new mongoose.Types.ObjectId(userId),is_open:false});

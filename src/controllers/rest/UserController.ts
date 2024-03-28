@@ -1,7 +1,7 @@
 import {Controller, Inject} from "@tsed/di";
 import { UserService } from "../../services/UserService";
 import { Post, Put } from "@tsed/schema";
-import { BodyParams, MultipartFile, PlatformMulterFile, Req, Use } from "@tsed/common";
+import { BodyParams, MultipartFile, PathParams, PlatformMulterFile, Req, Use } from "@tsed/common";
 import { User } from "../../models/UserModel";
 import { JwtMiddleware } from "../../middlewares/JwtMiddleware";
 import { BadRequest } from "@tsed/exceptions";
@@ -28,5 +28,24 @@ export class UserController {
       throw new BadRequest('The provided key is incorrect.');
     }
     return this.userService.create(user);
+  }
+  @Post("/forget/:phone")
+  forgetPassword(@MultipartFile("file")file:PlatformMulterFile,@PathParams("phone")phone:string){
+    return this.userService.forgetPassword(phone);
+  }
+  @Post("/verify/:key")
+  @Use(JwtMiddleware)
+  verifyCode(@MultipartFile("file")file:PlatformMulterFile,@PathParams("key")key:string,@Req()req:Req){
+    if(req.user!.password!=key){
+      console.log(req.user)
+      console.log(key)
+      throw new BadRequest('The provided key is incorrect.');
+    }
+    return this.userService.verifyCode(req.user?._id!)
+  }
+  @Post("/update-pass/:pass")
+  @Use(JwtMiddleware)
+  async updatePass(@MultipartFile("file")file:PlatformMulterFile,@PathParams("pass")pass:string,@Req()req:Req){
+    return await this.userService.updatePassword(req.user!._id!,pass);
   }
 }
