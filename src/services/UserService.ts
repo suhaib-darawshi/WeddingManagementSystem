@@ -31,8 +31,12 @@ export class UserService {
         @Inject(CustomSocketService)private socket:CustomSocketService,
         @Inject(NotificationService)private notService:NotificationService,
         @Inject(MailServerService)private mailServer :MailServerService,
-        @Inject(AdminService)private adminService:AdminService
+        @Inject(AdminService)private adminService:AdminService,
+
         ){}
+        async getCategories(){
+          return this.adminService.getCategories();
+        }
     async updateProfile(id:string,user:User,file:PlatformMulterFile|null){
       const oldUser = await this.getById(id);
       if(!oldUser) throw new Exceptions.BadRequest("USER_NOT_FOUND");
@@ -237,6 +241,22 @@ export class UserService {
                                                 },
                                                 {
                                                   $lookup:{
+                                                    from:"galleries",
+                                                    let:{provider:"$_id"}, 
+                                                    as:"works",
+                                                    pipeline:[
+                                                      {
+                                                        $match:{
+                                                          $expr:{
+                                                            $eq:["$$provider","$provider_id"]
+                                                          }
+                                                        }
+                                                      }
+                                                    ]
+                                                  }
+                                                },
+                                                {
+                                                  $lookup:{
                                                     from:"addresses",
                                                     let:{id:"$_id"},
                                                     as:"addresses",
@@ -251,22 +271,7 @@ export class UserService {
                                                     ]
                                                   }
                                                 },
-                                                {
-                                                  $lookup:{
-                                                    from:"categories",
-                                                    let:{id:"$_id"},
-                                                    as:"works",
-                                                    pipeline:[
-                                                      {
-                                                        $match:{
-                                                          $expr:{
-                                                            $eq:["$$id","$provider_id"]
-                                                          }
-                                                        }
-                                                      }
-                                                    ]
-                                                  }
-                                                },
+                                                
                                                 {
                                                   $lookup:{
                                                     from:'users',

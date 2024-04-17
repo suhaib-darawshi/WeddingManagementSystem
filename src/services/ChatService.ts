@@ -66,6 +66,7 @@ export class ChatService {
             if(chat){
                 for(const message of (chat.messages as Message[])){
                     message.is_seen=true;
+                    
                 }
                 await chat.save();
             }

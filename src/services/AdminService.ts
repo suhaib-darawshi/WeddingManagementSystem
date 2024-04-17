@@ -16,7 +16,9 @@ export class AdminService {
         @Inject(AuthService)private auth:AuthService,
         @Inject(Category)private categoryModel:MongooseModel<Category>
         ){}
-    
+    async getCategories(){
+        return await this.categoryModel.find({active:true});
+    }
     async signIn(userr:User){
         userr.role="ADMIN";
         const user=await this.userModel.findOne(userr);
@@ -149,7 +151,7 @@ export class AdminService {
                                                   },
                                                   {
                                                     $lookup:{
-                                                      from:"categories",
+                                                      from:"galleries",
                                                       let:{id:"$_id"},
                                                       as:"works",
                                                       pipeline:[
@@ -282,7 +284,7 @@ export class AdminService {
                                       },
                                       {
                                         $lookup:{
-                                          from:"categories",
+                                          from:"galleries",
                                           let:{id:"$_id"},
                                           as:"works",
                                           pipeline:[

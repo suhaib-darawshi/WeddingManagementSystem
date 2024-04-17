@@ -15,6 +15,7 @@ import { CUser } from "../interfaces/CUser";
 import { MailServerService } from "./MailServerService";
 import { Gallery } from "../models/GalleryModel";
 import { Address } from "../models/AddressModel";
+import { pipeline } from "stream";
 
 @Injectable()
 export class SProviderService {
@@ -57,6 +58,7 @@ export class SProviderService {
     async deleteService(id:string){
       return await this.serviceModel.findByIdAndDelete(id);
     }
+    
     async updateServiceStatus(id:string,state:string){
       const service=await this.serviceModel.findById(id); 
       if(!service) throw new BadRequest("Service Not Found");
@@ -82,7 +84,7 @@ export class SProviderService {
       return await this.serviceModel.findByIdAndUpdate(id,service);
     }
     async updateProviderStatus(id: string, status: string){
-      const provider=await this.sproviderModel.findById(id);
+      const provider=await this.sproviderModel.findOne({user:id});
       if (!provider)throw new Exceptions.NotFound('Not found Provider');
       provider.status=status;
       await provider.save();
@@ -94,16 +96,19 @@ export class SProviderService {
       return provider;
     }
     async addWork(work:Partial<Gallery>,file:PlatformMulterFile|undefined){
+      const provider=await this.sproviderModel.findOne({user:work.provider_id});
+      if(!provider) throw new BadRequest("User Not Found");
+      work.provider_id=provider;
       if (file) {
         const originalExtension = path.extname(file.originalname)
-        const uploadsDir = path.join( 'public', 'uploads', (work.provider_id as string),"works");
+        const uploadsDir = path.join( 'public', 'uploads', (work.provider_id as ServiceProvider)._id.toString(),"works");
         if (!fs.existsSync(uploadsDir)) {
             fs.mkdirSync(uploadsDir, { recursive: true });
         }
         console.log(uploadsDir);
         const targetPath = path.join(uploadsDir, `${file.originalname}`);
         fs.writeFileSync(targetPath, file.buffer);
-        work.url = path.join('public','uploads',  (work.provider_id as string),"works", `${file.originalname}`);
+        work.url = path.join('public','uploads',  (work.provider_id as ServiceProvider)._id.toString(),"works", `${file.originalname}`);
         
       }
       return await this.galleryModel.create(work);
@@ -219,8 +224,6 @@ export class SProviderService {
             await userMod.save();
           }
           return {user : await this.getUserInfo(userMod),token:this.auth.generateToken(userMod)};
-
-
     }
 
     async getUserInfo(user:User){
@@ -240,9 +243,19 @@ export class SProviderService {
                     $expr: {
                       $eq: ["$$id", "$user"] 
                     }
-                  }},
-
+                  },
+                  
+                },
+                {
+                  $addFields:{pid: "$_id"}
+                },
+                {
+                  $project:{
+                    _id:0
+                  }
+                }
                 ],
+                
                 as: "info",
               }
             },
@@ -251,9 +264,6 @@ export class SProviderService {
                 info: { $arrayElemAt: ["$info", 0] }
               }
             },
-            
-
-            
             {
                 $lookup: {
                     from: "notifications",
@@ -268,14 +278,29 @@ export class SProviderService {
                     },
                         { $sort: { createdAt: -1 } }
                       ],
-                                            as: "notifications",
-
+                    as: "notifications",
                 }
+            },
+            {
+              $lookup:{
+                from:"galleries",
+                let:{provider:"$info.pid"}, 
+                as:"works",
+                pipeline:[
+                  {
+                    $match:{
+                      $expr:{
+                        $eq:["$$provider","$provider_id"]
+                      }
+                    }
+                  }
+                ]
+              }
             },
             {
                 $lookup: {
                     from: "services",
-                    let:{provider:"$info._id"}, 
+                    let:{provider:"$info.pid"}, 
                     as: "services",
                     pipeline:[
                         {

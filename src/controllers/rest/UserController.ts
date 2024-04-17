@@ -69,5 +69,9 @@ export class UserController {
   rateService(@MultipartFile("file")file:PlatformMulterFile,@BodyParams()rating:Rating,@PathParams("orderId")orderId:string){
     return this.serviceService.RateService(rating,orderId);
   }
+  @Get("/categories")
+  getCategories(){
+    return this.userService.getCategories();
+  }
   
 }
