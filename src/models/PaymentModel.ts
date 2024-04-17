@@ -4,7 +4,11 @@ import { User } from "./UserModel";
 import { Service } from "./ServiceModel";
 import mongoose from "mongoose";
 
-@Model()
+@Model({
+  schemaOptions: {
+    timestamps: true, 
+  }
+})
 export class Payment {
   @ObjectID()
   _id: string;
@@ -14,10 +18,6 @@ export class Payment {
 
   @Ref(Service)
   service_id: Ref<Service>;
-
-  @Property()
-  @Default(Date.now())
-  createdAt: Date;
 
   @Property()
   @Default("")

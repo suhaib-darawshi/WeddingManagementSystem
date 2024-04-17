@@ -1,7 +1,11 @@
 import { Model, ObjectID, Ref } from "@tsed/mongoose";
 import {Default, Property} from "@tsed/schema";
 import { User } from "./UserModel";
-@Model()
+@Model({
+  schemaOptions: {
+    timestamps: true, 
+  }
+})
 export class Message {
   @ObjectID()
   _id:string;
@@ -13,9 +17,6 @@ export class Message {
   @Default("")
   type:string
 
-  @Property()
-  @Default(Date.now())
-  createdAt: Date;
 
   @Property()
   @Default("")

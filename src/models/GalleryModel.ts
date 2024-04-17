@@ -1,24 +1,37 @@
 import { Model, ObjectID, Ref } from "@tsed/mongoose";
 import {Default, Property} from "@tsed/schema";
-import { Service } from "./ServiceModel";
-@Model()
+import { ServiceProvider } from "./ServiceProviderModel";
+@Model({
+  schemaOptions: {
+    timestamps: true, 
+  }
+})
 export class Gallery {
   @ObjectID()
   _id: string;
 
-  @Ref(Service)
-  service_id: Ref<Service>;
+  @Ref(ServiceProvider)
+  provider_id: Ref<ServiceProvider>;
 
   @Property()
   @Default("")
-  name: string;
+  url: string;
   
+  @Property()
+  @Default("")
+  location: string;
+
+  @Property()
+  @Default("")
+  description: string;
+
+  @Property()
+  @Default("")
+  category: string;
+
   @Property()
   @Default("")
   type: string;
 
   
-  @Property()
-  @Default(Date.now())
-  createdAt: Date;
 }

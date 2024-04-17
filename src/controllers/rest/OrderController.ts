@@ -29,4 +29,9 @@ export class OrderController {
   async rejectOrder(@MultipartFile("file")file:PlatformMulterFile,@PathParams("id")order:string,@Req()req:Req){
     return await this.bookingService.rejecttOrder(order,req.user!._id!)
   }
+  @Post("/:id/cancel")
+  @Use(JwtMiddleware)
+  cancelOrder(@MultipartFile("file")file:PlatformMulterFile,@PathParams("id")id:string){
+    return this.userService.cancelOrder(id);
+  }
 }

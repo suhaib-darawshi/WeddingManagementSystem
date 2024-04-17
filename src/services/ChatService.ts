@@ -100,18 +100,7 @@ export class ChatService {
             chat!.messages.push(msg);
             await chat.save();
             this.socket.sendEventToClient(message.receiver_id!.toString(),{message:msg,chat:chat._id!},"New Message");
-            const users=chat.users;
-            chat.users=[];
-            for(const user of users){
-                let u=await this.userModel.findById(user,{password:0});
-                if(!u){
-                    u=await this.sproviderModel.findById(user,{password:0});
-                }
-                if(u){
-                    chat.users.push(u)
-                }
-            }
-            return chat.populate({path:"messages"});
+            return chat.populate([{path:"messages"},{path:"users",select:"-password"}]);
         }
     
 }

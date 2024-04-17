@@ -11,6 +11,10 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as Exceptions from "@tsed/exceptions" ;
 import { User } from "../models/UserModel";
+import { CUser } from "../interfaces/CUser";
+import { MailServerService } from "./MailServerService";
+import { Gallery } from "../models/GalleryModel";
+import { Address } from "../models/AddressModel";
 
 @Injectable()
 export class SProviderService {
@@ -19,8 +23,162 @@ export class SProviderService {
         @Inject(ServiceProvider) private sproviderModel:MongooseModel<ServiceProvider>,
         @Inject(AuthService)private auth:AuthService,
         @Inject(User)private userModel:MongooseModel<User>,
+        @Inject(MailServerService)private mailServer :MailServerService,
+        @Inject(Gallery)private galleryModel:MongooseModel<Gallery>,
+        @Inject(Service)private serviceModel:MongooseModel<Service>,
+        @Inject(Address)private addressModel:MongooseModel<Address>
     ){}
-    async signup(user:ServiceProvider){
+    async addAddres(id:string,address:Partial<Address>){
+      const provider = await this.sproviderModel.findOne({user:id});
+      if(!provider) throw new Exceptions.BadRequest("Provider not found");
+      address.provider=provider;
+      return await this.addressModel.create(address);
+    }
+    async updateAccount(id:string,updateData:Partial<CUser>,file?:PlatformMulterFile) {
+      const user = await this.userModel.findById(id);
+      if(!user) throw new  Exceptions.NotFound("User not found");
+      if (file) {
+        if (fs.existsSync(user.logo)) {
+          fs.unlinkSync(user.logo); 
+      }
+          const originalExtension = path.extname(file.originalname)
+          const uploadsDir = path.join( 'public', 'uploads', user._id.toString());
+          if (!fs.existsSync(uploadsDir)) {
+              fs.mkdirSync(uploadsDir, { recursive: true });
+          }
+          const targetPath = path.join(uploadsDir, 'logo'+originalExtension);
+          fs.writeFileSync(targetPath, file.buffer);
+          user.logo = path.join('public','uploads', user._id.toString(), 'logo'+originalExtension);
+        }
+        updateData.logo=user.logo;
+        await this.sproviderModel.updateOne({user:user._id},updateData);
+        return await this.userModel.findByIdAndUpdate(id,updateData);
+    }
+    async deleteService(id:string){
+      return await this.serviceModel.findByIdAndDelete(id);
+    }
+    async updateServiceStatus(id:string,state:string){
+      const service=await this.serviceModel.findById(id); 
+      if(!service) throw new BadRequest("Service Not Found");
+      return await this.serviceModel.findByIdAndUpdate(id,{status:state});  
+    }
+    async updateService(id:string,service:Partial<Service>,file:PlatformMulterFile|undefined){
+      const srvc=await this.serviceModel.findById(id).populate({path:"provider_id",model:"ServiceProvicer"});
+      if(!srvc) throw new Exceptions.NotFound('Service not found');
+      if (file) {
+        if (fs.existsSync(srvc.logo)) {
+          fs.unlinkSync(srvc.logo); // Delete the old file
+      }
+          const originalExtension = path.extname(file.originalname)
+          const uploadsDir = path.join( 'public', 'uploads', (srvc.provider_id as ServiceProvider)._id.toString(), 'services',srvc._id.toString());
+          if (!fs.existsSync(uploadsDir)) {
+              fs.mkdirSync(uploadsDir, { recursive: true });
+          }
+          const targetPath = path.join(uploadsDir, 'serviceLogo'+originalExtension);
+          fs.writeFileSync(targetPath, file.buffer);
+          srvc.logo = path.join('public','uploads', (srvc.provider_id as ServiceProvider)._id.toString(), 'services',srvc._id.toString(), 'serviceLogo'+originalExtension);
+        }
+      service.logo=srvc.logo;
+      return await this.serviceModel.findByIdAndUpdate(id,service);
+    }
+    async updateProviderStatus(id: string, status: string){
+      const provider=await this.sproviderModel.findById(id);
+      if (!provider)throw new Exceptions.NotFound('Not found Provider');
+      provider.status=status;
+      await provider.save();
+      const  services = await this.serviceModel.find({provider_id:provider._id});
+      for(const service of services){
+        service.status=status;
+        await service.save();
+      }
+      return provider;
+    }
+    async addWork(work:Partial<Gallery>,file:PlatformMulterFile|undefined){
+      if (file) {
+        const originalExtension = path.extname(file.originalname)
+        const uploadsDir = path.join( 'public', 'uploads', (work.provider_id as string),"works");
+        if (!fs.existsSync(uploadsDir)) {
+            fs.mkdirSync(uploadsDir, { recursive: true });
+        }
+        console.log(uploadsDir);
+        const targetPath = path.join(uploadsDir, `${file.originalname}`);
+        fs.writeFileSync(targetPath, file.buffer);
+        work.url = path.join('public','uploads',  (work.provider_id as string),"works", `${file.originalname}`);
+        
+      }
+      return await this.galleryModel.create(work);
+    }
+    async getProvider(id:string){
+      const doc= await this.userModel.aggregate(
+        [
+          {
+            $match: {
+                _id: id,
+            }
+        },
+        {
+          $lookup:{
+            from:'serviceproviders',
+            let :{ id:"$_id" },
+            pipeline:[
+              {$match: {
+                $expr: {
+                  $eq: ["$$id", "$user"] 
+                }
+              }},
+
+            ],
+            as: "info",
+          }
+        },
+        {
+          $addFields: {
+            info: { $arrayElemAt: ["$info", 0] }
+          }
+        },
+        {
+          $lookup: {
+              from: "services",
+              let:{provider:"$info._id"}, 
+              as: "services",
+              pipeline:[
+                  {
+                      $match:{
+                          $expr:{
+                              $eq:["$$provider",'$provider_id']
+                          }
+                      }
+                  },
+                  
+                  
+              ]
+          }
+      },
+      {
+        $replaceRoot: {
+            newRoot: {
+                $mergeObjects: ["$$ROOT", "$info"]
+            }
+        }
+    },
+    {
+      $project: {
+          info: 0  
+      }
+  },
+      
+      {
+          $limit: 1 
+      }
+        
+        ]
+      ).exec();
+      if(doc.length==0){
+        throw new BadRequest( 'Invalid provider id');
+      }
+      return  doc[0];
+    }
+    async signup(user:CUser){
         user.role="PROVIDER";
         const u=await this.userModel.findOne({$or:[
             {phone:user.phone}
@@ -30,46 +188,72 @@ export class SProviderService {
         }
         const s=await this.sproviderModel.findOne({$or:[
             {email:user.email},
-            {phone:user.phone}
         ]});
         if(s){
-            throw new Exceptions.Conflict("USER_ALREADY_EXIST");
+            throw new Exceptions.Conflict("EMAIL_ALREADY_EXIST");
         }
-        const x: string = (Math.random() * 899999 + 100000).toFixed(0);
+        const x: string = (Math.random() * 8999 + 1000).toFixed(0);
         console.log(x);
         user.password=x;
+        console.log(user);
+        await this.mailServer.sendAuthEmail(user.email,"Confirm your email for Rafeed",x);
         // TODO : send sms to verify
         return this.auth.generateToken(user);
     }
-    async createAccount(user:ServiceProvider,file:PlatformMulterFile){
+    async createAccount(user:CUser,file:PlatformMulterFile){
         user.password=await this.hashPassword(user.password);
         user.role="PROVIDER";
+        const userMod=await this.userModel.create(user);
+        user.user=userMod;
         const provider=await this.sproviderModel.create(user);
         if (file) {
             const originalExtension = path.extname(file.originalname)
-            const uploadsDir = path.join( 'public', 'uploads', provider._id.toString());
+            const uploadsDir = path.join( 'public', 'uploads', user._id.toString());
             if (!fs.existsSync(uploadsDir)) {
                 fs.mkdirSync(uploadsDir, { recursive: true });
             }
             console.log(uploadsDir);
             const targetPath = path.join(uploadsDir, `logo${originalExtension}`);
             fs.writeFileSync(targetPath, file.buffer);
-            provider.logo = path.join('public','uploads', provider._id.toString(), `logo${originalExtension}`);
-            await provider.save();
+            userMod.logo = path.join('public','uploads', user._id.toString(), `logo${originalExtension}`);
+            await userMod.save();
           }
-          await this.userModel.create(user);
-        return  {user : await this.getUserInfo(provider),token:this.auth.generateToken(provider)};;
+          return {user : await this.getUserInfo(userMod),token:this.auth.generateToken(userMod)};
+
+
     }
 
     async getUserInfo(user:User){
         
-        const userInfo=await this.sproviderModel.aggregate([
+        const userInfo=await this.userModel.aggregate([
             {
                 $match: {
-                    phone: user.phone,
-                    password: user.password 
+                    _id: user._id,
                 }
             },
+            {
+              $lookup:{
+                from:'serviceproviders',
+                let :{ id:"$_id" },
+                pipeline:[
+                  {$match: {
+                    $expr: {
+                      $eq: ["$$id", "$user"] 
+                    }
+                  }},
+
+                ],
+                as: "info",
+              }
+            },
+            {
+              $addFields: {
+                info: { $arrayElemAt: ["$info", 0] }
+              }
+            },
+            
+
+            
             {
                 $lookup: {
                     from: "notifications",
@@ -91,9 +275,7 @@ export class SProviderService {
             {
                 $lookup: {
                     from: "services",
-                    // localField: "_id",
-                    // foreignField: "provider_id",
-                    let:{provider:"$_id"}, 
+                    let:{provider:"$info._id"}, 
                     as: "services",
                     pipeline:[
                         {
@@ -106,8 +288,6 @@ export class SProviderService {
                         {
                             $lookup:{
                                 from: "orders",
-                                // localField: "_id",
-                                // foreignField: "service_id", 
                                 let:{service:"$_id"},
                                 as: "orders",
                                 pipeline:[
@@ -122,8 +302,6 @@ export class SProviderService {
                                         
                                         $lookup: {
                                           from: "users",
-                                        //   localField: "customer_id", 
-                                        //   foreignField: "_id", 
                                           let:{customer:"$customer_id"},
                                           as: "customer" ,
                                           pipeline:[
@@ -140,6 +318,17 @@ export class SProviderService {
                                           ]
                                         }
                                       },
+                                      {
+                                        $addFields: {
+                                          customer: { $arrayElemAt: ["$customer", 0] }
+                                        }
+                                      },
+                                      {
+                                        $project:{
+                                          customer_id:0,
+                                          service_id:0
+                                        }
+                                      }
                                 ]
                             }
                         },
@@ -201,6 +390,25 @@ export class SProviderService {
                   as: "chats"
                 }
             },
+            {
+              $replaceRoot: {
+                  newRoot: {
+                      $mergeObjects: ["$$ROOT", "$info"]
+                  }
+              }
+          },
+          {
+            $project: {
+                info: 0  
+            }
+        },
+        {
+          $lookup:{
+            from:"categories",
+            as:"categories",
+            pipeline:[]
+          }
+        },
             
             {
                 $limit: 1 
@@ -212,9 +420,13 @@ export class SProviderService {
         return bcrypt.hash(password, await bcrypt.genSalt(10));
     }
     async createService(service:Service,id:string,file:PlatformMulterFile){
-        const provider=await this.sproviderModel.findById(id);
+      const user=await this.userModel.findById(id);
+      if(!user){
+        throw new BadRequest("USER_NOT_FOUND");
+      }
+        const provider=await this.sproviderModel.findOne({user:user.id});
         if(!provider){
-            throw new BadRequest("Provider not found");
+            throw new BadRequest("PPROVIDER_NOT_FOUND");
         }
         service.provider_id=provider;
         const srvc=await this.serviceService.createService(service);

@@ -5,8 +5,8 @@ import * as SocketIO from "socket.io";
 import { User } from "./../models/UserModel";
 import { ChatService } from "./ChatService";
 import { NotificationService } from "./NotificationService";
+import { ServiceService } from "./ServiceService";
 interface Client {
-    sensors:string[]
     id: string;
   }
   
@@ -20,10 +20,7 @@ export class CustomSocketService {
 
   constructor(
     @IO() private io: SocketIO.Server,
-    @Inject(User)private userModel:MongooseModel<User>,
-    // @Inject(ChatService)private chatService:ChatService,
     private injector: InjectorService,
-    @Inject(NotificationService)private notService:NotificationService
     ) {}
   setIo(io:SocketIO.Server){
     this.io=io;
@@ -41,9 +38,19 @@ export class CustomSocketService {
         
       }
   });
+    socket.on("search",async(data:any)=>{
+      const serviceService=this.injector.get<ServiceService>(ServiceService)!;
+      const services=await serviceService.searchService(data);
+      this.clients.forEach((sockett, id) =>{
+        if(socket.id==sockett.id){
+            this.sendEventToClient(id,services, "search results");
+        }
+    });
+    })
     socket.on("open nots", async(data: any) => {
       try{
-        await this.notService.setNotsAsSeen(data.user);
+        const notService=this.injector.get<NotificationService>(NotificationService)!;
+        await notService.setNotsAsSeen(data.user);
       } catch(e){
         
       }

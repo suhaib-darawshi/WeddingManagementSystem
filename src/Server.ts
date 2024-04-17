@@ -7,6 +7,7 @@ import "@tsed/mongoose";
 import {config} from "./config/index";
 import * as rest from "./controllers/rest/index";
 import { CustomSocketService } from "./services/CustomSocketService";
+import { BackupService } from "./services/BackupService";
 
 @Configuration({
   ...config,
@@ -56,10 +57,10 @@ import { CustomSocketService } from "./services/CustomSocketService";
 export class Server {
   @Inject()
   protected app: PlatformApplication;
-
+  @Inject() backup:BackupService
   @Configuration()
   protected settings: Configuration;
   async $onInit(): Promise<void>{
-
+    
   }
 }

@@ -2,7 +2,11 @@ import { Model, ObjectID, Ref } from "@tsed/mongoose";
 import {Default, Property} from "@tsed/schema";
 import { ServiceProvider } from "./ServiceProviderModel";
 import { Gallery } from "./GalleryModel";
-@Model()
+@Model({
+  schemaOptions: {
+    timestamps: true, 
+  }
+})
 export class Service {
   @ObjectID()
   _id: string;
@@ -37,4 +41,11 @@ export class Service {
   @Default([])
   objectives: string[];
 
+  @Property()
+  @Default("ACTIVE")
+  status: string ;
+
+  @Property()
+  @Default(true)
+  autoAccept:boolean
 }

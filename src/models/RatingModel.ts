@@ -2,8 +2,12 @@ import { Model, ObjectID, Ref } from "@tsed/mongoose";
 import {Default, Property} from "@tsed/schema";
 import { User } from "./UserModel";
 import { Service } from "./ServiceModel";
-@Model()
-export class RatingModel {
+@Model({
+  schemaOptions: {
+    timestamps: true, 
+  }
+})
+export class Rating {
   @ObjectID()
   _id: string;
 
@@ -21,7 +25,5 @@ export class RatingModel {
   @Default(1)
   value: number;
 
-  @Property()
-  @Default(Date.now())
-  createdAt: Date;
+  
 }

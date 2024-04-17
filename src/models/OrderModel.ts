@@ -2,7 +2,12 @@ import { Model, ObjectID, Ref } from "@tsed/mongoose";
 import {Default, Property} from "@tsed/schema";
 import { User } from "./UserModel";
 import { Service } from "./ServiceModel";
-@Model()
+import { Rating } from "./RatingModel";
+@Model({
+  schemaOptions: {
+    timestamps: true, 
+  }
+})
 export class Order {
   @ObjectID()
   _id: string;
@@ -13,9 +18,6 @@ export class Order {
   @Ref(Service)
   service_id:Ref<Service>;
 
-  @Property()
-  @Default(Date.now())
-  createdAt: Date;
 
   @Property()
   @Default(Date.now())
@@ -37,4 +39,6 @@ export class Order {
   @Default("")
   hall:string;
 
+  @Ref(Rating)
+  rating: Ref<Rating>;
 }

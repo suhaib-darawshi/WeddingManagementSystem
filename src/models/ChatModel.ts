@@ -2,7 +2,11 @@ import { Model, MongooseModel, ObjectID, Ref } from "@tsed/mongoose";
 import {Default, Property} from "@tsed/schema";
 import { User } from "./UserModel";
 import { Message } from "./MessageModel";
-@Model()
+@Model({
+  schemaOptions: {
+    timestamps: true, 
+  }
+})
 export class Chat {
   @ObjectID()
   _id: string;
@@ -14,11 +18,5 @@ export class Chat {
   @Ref(Message)
   messages: Ref<Message>[];
 
-  @Property()
-  @Default(Date.now())
-  createdAt: Date;
-
-  @Property()
-  @Default(Date.now())
-  lastUpdated:Date;
+  
 }

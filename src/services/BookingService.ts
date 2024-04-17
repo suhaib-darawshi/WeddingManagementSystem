@@ -20,7 +20,7 @@ export class BookingService {
     }
     async acceptOrder(orderId:string,user:string){
 
-        const order=await this.orderModel.findById(orderId).populate([{path:"service_id",model:"Service",populate:{model:"ServiceProvider",path:"provider_id"}},{path:"customer_id",model:"User"}]);
+        const order=await this.orderModel.findById(orderId).populate([{path:"service_id",model:"Service",populate:{model:"ServiceProvider",path:"provider_id",populate:{path:"user",model:"User"}}},{path:"customer_id",model:"User"}]);
         if(!order){
             throw new BadRequest("Order Not Found");
         }
@@ -29,7 +29,7 @@ export class BookingService {
         }
         order.status="ACCEPTED";
         await order.save();
-        await this.notService.createNotification({type:"Order Accepted",user_id:order.customer_id,message:`${((order.service_id as Service).provider_id as ServiceProvider).username} has accepted your order for ${(order.service_id as Service).title}`});
+        await this.notService.createNotification({type:"Order Accepted",user_id:order.customer_id,message:`${(((order.service_id as Service).provider_id as ServiceProvider).user as User).username} has accepted your order for ${(order.service_id as Service).title}`});
         this.socket.sendEventToClient(((order.customer_id as User)._id.toString()),order,"Order Accepted");
 
     }
@@ -43,7 +43,13 @@ export class BookingService {
         }
         order.status="REJECTED";
         await order.save();
-        await this.notService.createNotification({type:"Order Rejected",user_id:order.customer_id,message:`${((order.service_id as Service).provider_id as ServiceProvider).username} has rejected your order for ${(order.service_id as Service).title}`});
+        await this.notService.createNotification({type:"Order Rejected",user_id:order.customer_id,message:`${(((order.service_id as Service).provider_id as ServiceProvider).user as User).username} has rejected your order for ${(order.service_id as Service).title}`});
         this.socket.sendEventToClient(((order.customer_id as User)._id.toString()),order,"Order Rejected");
+    }
+    async getById(id:string){
+        return await this.orderModel.findById(id);
+    }
+    async deleteOrder(id:string){
+        return await this.orderModel.findByIdAndDelete(id);
     }
 }

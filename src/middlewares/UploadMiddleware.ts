@@ -1,5 +1,3 @@
-// src/middlewares/UploadMiddleware.ts
-import { NextFunction, Request, Response } from 'express';
 import { Middleware, Next, Req, Res } from '@tsed/common';
 import { upload } from '../config/MulterConfig';
 

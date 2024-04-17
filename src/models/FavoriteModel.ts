@@ -2,7 +2,11 @@ import { Model, MongooseModel, ObjectID, Ref } from "@tsed/mongoose";
 import {Default, Property} from "@tsed/schema";
 import { Service } from "./ServiceModel";
 import { User } from "./UserModel";
-@Model()
+@Model({
+  schemaOptions: {
+    timestamps: true, 
+  }
+})
 export class Favorite {
   @ObjectID()
   _id: string;
@@ -13,8 +17,5 @@ export class Favorite {
   @Ref(User)
   customer_id: Ref<User>
 
-  @Property()
-  @Default(Date.now())
-  createdAt: Date;
 }
 export const FavoriteModel: MongooseModel<Favorite> = Favorite as MongooseModel<Favorite>;
