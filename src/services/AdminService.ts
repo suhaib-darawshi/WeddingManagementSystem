@@ -43,7 +43,20 @@ export class AdminService {
             
     }
     async getAdminData(user:User){
+        let categoryNames = await this.categoryModel.aggregate([
+            {
+                $group: {
+                    _id: null,
+                    names: { $push: "$name" }
+                }
+            }
+        ]);
         const userInfo=await this.userModel.aggregate([
+            {
+                $addFields: {
+                    allCategoryNames: categoryNames[0].names  // Assuming category names are stored in a single document array
+                }
+            },
             {
                 $match: {
                     _id: user._id,
@@ -65,6 +78,365 @@ export class AdminService {
                         { $sort: { createdAt: -1 } }
                       ],
                       as: "notifications",
+                }
+            },
+            
+            {
+                $lookup:{
+                    from:"users",
+                    let:{role:"CUSTOMER"},
+                    as :"users",
+                    pipeline: [
+                        {
+                            $match:{
+                                $expr:{
+                                    $eq:["$role","$$role"]
+                                }
+                            }
+                        },
+                        { $sort: { createdAt: -1 } }, 
+                        { $limit: 100 }              
+                    ],
+                }
+            },
+            {
+                $lookup:{
+                    from:"users",
+                    let:{role:"PROVIDER"},
+                    as :"providers",
+                    pipeline: [
+                        {
+                            $match:{
+                                $expr:{
+                                    $eq:["$role","$$role"]
+                                }
+                            }
+                        },
+                        { $sort: { createdAt: -1 } }, 
+                        { $limit: 100 },
+                        
+                        {
+                            $lookup:{
+                                from:"serviceproviders",
+                                let:{userId:"$_id"},
+                                as:"provider",
+                                
+                                pipeline:[  
+                                    {
+                                        $match:{
+                                            $expr:{
+                                                $eq:[ "$user", '$$userId']
+                                            }
+                                        }
+                                    },
+                                    {
+                                        $lookup:{
+                                          from:"addresses",
+                                          let:{id:"$_id"},
+                                          as:"addresses",
+                                          pipeline:[
+                                            {
+                                              $match:{
+                                                $expr:{
+                                                  $eq:["$$id","$provider"]
+                                                }
+                                              }
+                                            }
+                                          ]
+                                        }
+                                      },
+                                      {
+                                        $lookup:{
+                                          from:"galleries",
+                                          let:{id:"$_id"},
+                                          as:"works",
+                                          pipeline:[
+                                            {
+                                              $match:{
+                                                $expr:{
+                                                  $eq:["$$id","$provider_id"]
+                                                }
+                                              }
+                                            }
+                                          ]
+                                        }
+                                      },
+                                    {$limit:1},
+                                    {
+                                        $addFields:{pid: "$_id"}
+                                      },
+                                      {
+                                        $project:{
+                                          _id:0
+                                        }
+                                      }
+                                ]
+                            }
+                        },
+                        {
+                            $addFields: {
+                                provider: { $arrayElemAt: ["$provider", 0] }
+                            }
+                        },
+                        {
+                            $replaceRoot: {
+                                newRoot: { $mergeObjects: ["$$ROOT", "$provider"] }
+                            }
+                        },
+                    ],
+                }
+            },
+
+            {
+                $lookup: {
+                  from: "chats", 
+                  let: { userId: "$_id" },
+                  pipeline: [
+                    {
+                      $match: {
+                        $expr: {
+                          $in: ["$$userId", "$users"] 
+                        }
+                      }
+                    },
+                    {
+                        $sort:{lastUpdated:-1}
+                    },
+                    {
+                        $lookup: {
+                          from: "users", 
+                          let:{userss:"$users"},
+                          pipeline:[{
+                            $match: {
+                                $expr: {
+                                  $in: ["$_id", "$$userss"] 
+                                }
+                              }
+                          }],
+                          
+                          as: "users"
+                        }
+                      },
+                      
+                      {
+                        $lookup: {
+                          from: "messages", 
+                          let:{messagess:"$messages"},
+                          as: "messages",
+                          pipeline:[
+                            {
+                                $match: {
+                                    $expr: {
+                                      $in: ["$_id", "$$messagess"] 
+                                    }
+                                  }
+                              },
+                            { $sort: { createdAt: -1 } }
+                          ]
+                        },
+                        
+                      },
+                  ],
+                  as: "chats"
+                }
+            },
+            {
+                $lookup: {
+                  from: "categories",
+                  pipeline: [],
+                  as: "categories"
+                }
+              },
+              {
+                $unwind: {
+                    path: "$categories", 
+                    preserveNullAndEmptyArrays: true 
+                }
+            },
+            
+              {
+                $lookup: {
+                  from: "services",
+                  let: { cat: "$categories.name" },  
+                  pipeline: [
+                    {
+                      $match: {
+                        $expr: {
+                          $eq: ["$category", "$$cat"]
+                        }
+                      }
+                    },
+                    {
+                      $lookup: {
+                        from: "serviceproviders",
+                        let: { provider_id: "$provider_id" },
+                        pipeline: [
+                          {
+                            $match: {
+                              $expr: {
+                                $eq: ["$$provider_id", "$_id"]
+                              }
+                            }
+                          },
+                          { $set: { "password": 0 } },
+                          {
+                            $addFields:{pid: "$_id"}
+                          },
+                          {
+                            $project:{
+                              _id:0
+                            }
+                          },
+                          {
+                            $lookup: {
+                              from: "users",
+                              let: { user: "$user" },
+                              pipeline: [
+                                {
+                                  $match: {
+                                    $expr: {
+                                      $eq: ["$$user", "$_id"]
+                                    }
+                                  }
+                                }
+                              ],
+                              as: "user"
+                            }
+                          },
+                          {
+                            $addFields: {
+                              user: { $arrayElemAt: ["$user", 0] }
+                            }
+                          },
+                          {
+                            $replaceRoot: {
+                              newRoot: { $mergeObjects: ["$$ROOT", "$user"] }
+                            }
+                          },
+                          {
+                            $project: {
+                              user: 0,
+                              password: 0
+                            }
+                          }
+                        ],
+                        as: "provider"
+                      }
+                    },
+                    {
+                      $addFields: {
+                        provider: { $arrayElemAt: ["$provider", 0] }
+                      }
+                    }
+                  ],
+                  as: "services"
+                }
+              },
+              
+              {
+                $lookup: {
+                  from: "services",
+                  let: { fetchedCats: "$allCategoryNames" },  // This assumes you have the category names collected in a previous step
+                  pipeline: [
+                    {
+                      $match: {
+                        $expr: {
+                          $not: {
+                            $in: ["$category", "$$fetchedCats"]
+                          }
+                        }
+                      }
+                    },
+                    {
+                        $lookup: {
+                          from: "serviceproviders",
+                          let: { provider_id: "$provider_id" },
+                          pipeline: [
+                            {
+                              $match: {
+                                $expr: {
+                                  $eq: ["$$provider_id", "$_id"]
+                                }
+                              }
+                            },
+                            { $set: { "password": 0 } },
+                            {
+                              $addFields:{pid: "$_id"}
+                            },
+                            {
+                              $project:{
+                                _id:0
+                              }
+                            },
+                            {
+                              $lookup: {
+                                from: "users",
+                                let: { user: "$user" },
+                                pipeline: [
+                                  {
+                                    $match: {
+                                      $expr: {
+                                        $eq: ["$$user", "$_id"]
+                                      }
+                                    }
+                                  }
+                                ],
+                                as: "user"
+                              }
+                            },
+                            {
+                              $addFields: {
+                                user: { $arrayElemAt: ["$user", 0] }
+                              }
+                            },
+                            {
+                              $replaceRoot: {
+                                newRoot: { $mergeObjects: ["$$ROOT", "$user"] }
+                              }
+                            },
+                            {
+                              $project: {
+                                user: 0,
+                                password: 0
+                              }
+                            }
+                          ],
+                          as: "provider"
+                        }
+                      },
+                      {
+                        $addFields: {
+                          provider: { $arrayElemAt: ["$provider", 0] }
+                        }
+                      }
+                  ],
+                  as: "otherS"
+                }
+              },
+              
+              {
+                $group: {
+                    _id: "$_id",
+                    username: { $first: "$username" },
+                    phone: { $first: "$phone" },
+                    password: { $first: "$password" },
+                    gender: { $first: "$gender" },
+                    role: { $first: "$role" },
+                    logo: { $first: "$logo" },
+                    notifications: { $first: "$notifications" },
+                    orders: { $first: "$orders" },
+                    chats: { $first: "$chats" },
+                    categories: {
+                        $push: {
+                            _id: "$categories._id",
+                            name: "$categories.name",
+                            services: "$services"
+                        }
+                    },
+                    users:{$first:"$users"},
+                    providers:{$first:"$providers"},
+                    others:{$first:"$otherS"}
+                    
                 }
             },
             {
@@ -219,236 +591,7 @@ export class AdminService {
                       ]
                 }
             },
-            {
-                $lookup:{
-                    from:"users",
-                    let:{role:"CUSTOMER"},
-                    as :"users",
-                    pipeline: [
-                        {
-                            $match:{
-                                $expr:{
-                                    $eq:["$role","$$role"]
-                                }
-                            }
-                        },
-                        { $sort: { createdAt: -1 } }, 
-                        { $limit: 100 }              
-                    ],
-                }
-            },
-            {
-                $lookup:{
-                    from:"users",
-                    let:{role:"PROVIDER"},
-                    as :"providers",
-                    pipeline: [
-                        {
-                            $match:{
-                                $expr:{
-                                    $eq:["$role","$$role"]
-                                }
-                            }
-                        },
-                        { $sort: { createdAt: -1 } }, 
-                        { $limit: 100 },
-                        
-                        {
-                            $lookup:{
-                                from:"serviceproviders",
-                                let:{userId:"$_id"},
-                                as:"provider",
-                                pipeline:[  
-                                    {
-                                        $match:{
-                                            $expr:{
-                                                $eq:[ "$user", '$$userId']
-                                            }
-                                        }
-                                    },
-                                    {
-                                        $lookup:{
-                                          from:"addresses",
-                                          let:{id:"$_id"},
-                                          as:"addresses",
-                                          pipeline:[
-                                            {
-                                              $match:{
-                                                $expr:{
-                                                  $eq:["$$id","$provider"]
-                                                }
-                                              }
-                                            }
-                                          ]
-                                        }
-                                      },
-                                      {
-                                        $lookup:{
-                                          from:"galleries",
-                                          let:{id:"$_id"},
-                                          as:"works",
-                                          pipeline:[
-                                            {
-                                              $match:{
-                                                $expr:{
-                                                  $eq:["$$id","$provider_id"]
-                                                }
-                                              }
-                                            }
-                                          ]
-                                        }
-                                      },
-                                    {$limit:1}
-                                ]
-                            }
-                        },
-                        {
-                            $addFields: {
-                                provider: { $arrayElemAt: ["$provider", 0] }
-                            }
-                        },
-                        {
-                            $replaceRoot: {
-                                newRoot: { $mergeObjects: ["$$ROOT", "$provider"] }
-                            }
-                        },
-                    ],
-                }
-            },
-
-            {
-                $lookup: {
-                  from: "chats", 
-                  let: { userId: "$_id" },
-                  pipeline: [
                     {
-                      $match: {
-                        $expr: {
-                          $in: ["$$userId", "$users"] 
-                        }
-                      }
-                    },
-                    {
-                        $sort:{lastUpdated:-1}
-                    },
-                    {
-                        $lookup: {
-                          from: "users", 
-                          let:{userss:"$users"},
-                          pipeline:[{
-                            $match: {
-                                $expr: {
-                                  $in: ["$_id", "$$userss"] 
-                                }
-                              }
-                          }],
-                          
-                          as: "users"
-                        }
-                      },
-                      
-                      {
-                        $lookup: {
-                          from: "messages", 
-                          let:{messagess:"$messages"},
-                          as: "messages",
-                          pipeline:[
-                            {
-                                $match: {
-                                    $expr: {
-                                      $in: ["$_id", "$$messagess"] 
-                                    }
-                                  }
-                              },
-                            { $sort: { createdAt: -1 } }
-                          ]
-                        },
-                        
-                      },
-                  ],
-                  as: "chats"
-                }
-            },
-
-            {
-                        $lookup: {
-                          from: "services", 
-                          let:{cat:"FILMING"},
-                          as: "filming",
-
-                          pipeline:[
-                            
-                            {
-                                $match: {
-                                    $expr: {
-                                      $eq: ["$category", "$$cat"] 
-                                    }
-                                  }
-                              },
-                              {$limit:50},
-                              {
-                                $lookup:{
-                                    from:"serviceproviders",
-                                    let:{provider_id: "$provider_id"},
-                                    as:"provider",
-                                    pipeline:[
-                                        {
-                                            $match: {
-                                              $expr: {
-                                                $eq: ["$$provider_id", "$_id"] 
-                                              }
-                                            }
-                                          },
-                                        {
-                                            $set:{"password":0}
-                                        },
-                                        {
-                                          $lookup:{
-                                            from:'users',
-                                            let:{user:'$user'},
-                                            as:'user',
-                                            pipeline:[
-                                              {
-                                                $match:{
-                                                  $expr:{
-                                                    $eq:["$$user","$_id"]
-                                                  }
-                                                }
-                                              },
-                                              
-                                            ]
-                                          }
-                                        },
-                                        {
-                                          $addFields: {
-                                              user: { $arrayElemAt: ["$user", 0] }
-                                          }
-                                      },
-                                      {
-                                          $replaceRoot: {
-                                              newRoot: { $mergeObjects: ["$$ROOT", "$user"] }
-                                          }
-                                      },
-                                      {
-                                        $project:{
-                                          user:0,
-                                          password:0
-                                        }
-                                      }
-                                    ]
-                                }
-                            },
-                            {
-                                $addFields: {
-                                    provider: { $arrayElemAt: ["$provider", 0] }
-                                }
-                              }
-                          ],
-                         
-                        },
-                        
-                      },
-                      {
                         $project: {
                             user: {
                                 _id: "$_id",
@@ -459,38 +602,16 @@ export class AdminService {
                                 role: "$role",
                                 logo: "$logo",
                                 notifications: "$notifications",
+                                
                                 chats: "$chats"
                             },
-                            services: {
-                                FILMING: "$filming"
-                            },
+                            categories: "$categories",
                             orders: "$orders",
                             users:"$users",
-                            providers:"$providers"
+                            providers:"$providers",
+                            others:"$others"
                         }
                     },
-                    // {
-                    //     $project: {
-                    //         user: {
-                    //             _id: "$_id",
-                    //             username: "$username",
-                    //             phone: "$phone",
-                    //             password: "$password",
-                    //             gender: "$gender",
-                    //             role: "$role",
-                    //             logo: "$logo",
-                    //             notifications: "$notifications",
-                                
-                    //             chats: "$chats"
-                    //         },
-                    //         services: {
-                    //             FILMING: "$filming"
-                    //         },
-                    //         orders: "$orders",
-                    //         users:"$users",
-                    //         providers:"$providers"
-                    //     }
-                    // },
             {
                 $limit: 1 
             }

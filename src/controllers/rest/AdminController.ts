@@ -13,7 +13,7 @@ export class AdminController {
     return "hello";
   }
   @Put("/category")
-  @Use(AdminMiddleware)
+  // @Use(AdminMiddleware)
   createCategory(@MultipartFile("file")file:PlatformMulterFile,@BodyParams()category:Category){
     return this.adminService.createCategory(category,file);
   }

@@ -161,7 +161,7 @@ export class UserService {
         }
         if(u.role=="ADMIN"){
           const userData=await this.adminService.getAdminData(u);
-          return userData;
+          return {userData:userData,token:this.auth.generateToken(u)};
         }
         
         return {user : await this.sproviderService.getUserInfo(u),token:this.auth.generateToken(u)};
@@ -462,6 +462,35 @@ export class UserService {
                   }
                 ],
                 as: "services"
+              }
+            },
+            {
+              $lookup: {
+                from: "services",
+                let: { fetchedCats: "$categories.name" },  // This assumes you have the category names collected in a previous step
+                pipeline: [
+                  {
+                    $match: {
+                      $expr: {
+                        $not: {
+                          $in: ["$category", "$$fetchedCats"]
+                        }
+                      }
+                    }
+                  },
+                  // Optionally include the service provider lookup here as well if needed for "other" services
+                ],
+                as: "otherS"
+              }
+            },
+            {
+              $addFields: {
+                categories: {
+                  $mergeObjects: [
+                    "$categories",
+                    { others: "$otherS" }
+                  ]
+                }
               }
             },
             {
