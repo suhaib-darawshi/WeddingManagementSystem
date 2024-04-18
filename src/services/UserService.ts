@@ -19,6 +19,7 @@ import * as path from 'path';
 import { NotificationService } from "./NotificationService";
 import { MailServerService } from "./MailServerService";
 import { AdminService } from "./AdminService";
+import { Category } from "../models/CategoryModel";
 @Injectable()
 export class UserService {
     constructor(
@@ -32,6 +33,7 @@ export class UserService {
         @Inject(NotificationService)private notService:NotificationService,
         @Inject(MailServerService)private mailServer :MailServerService,
         @Inject(AdminService)private adminService:AdminService,
+        @Inject(Category)private categoryModel:MongooseModel<Category>
 
         ){}
         async getCategories(){
@@ -169,8 +171,20 @@ export class UserService {
     }
     
     async getUserInfo(user:User){
-        
+      let categoryNames = await this.categoryModel.aggregate([
+        {
+            $group: {
+                _id: null,
+                names: { $push: "$name" }
+            }
+        }
+    ]);
         const userInfo=await this.userModel.aggregate([
+          {
+            $addFields: {
+                allCategoryNames: categoryNames[0].names  // Assuming category names are stored in a single document array
+            }
+        },
             {
                 $match: {
                     phone: user.phone,
@@ -464,10 +478,11 @@ export class UserService {
                 as: "services"
               }
             },
+            
             {
               $lookup: {
                 from: "services",
-                let: { fetchedCats: "$categories.name" },  // This assumes you have the category names collected in a previous step
+                let: { fetchedCats: "$allCategoryNames" },  // This assumes you have the category names collected in a previous step
                 pipeline: [
                   {
                     $match: {
@@ -478,19 +493,70 @@ export class UserService {
                       }
                     }
                   },
-                  // Optionally include the service provider lookup here as well if needed for "other" services
+                  {
+                      $lookup: {
+                        from: "serviceproviders",
+                        let: { provider_id: "$provider_id" },
+                        pipeline: [
+                          {
+                            $match: {
+                              $expr: {
+                                $eq: ["$$provider_id", "$_id"]
+                              }
+                            }
+                          },
+                          { $set: { "password": 0 } },
+                          {
+                            $addFields:{pid: "$_id"}
+                          },
+                          {
+                            $project:{
+                              _id:0
+                            }
+                          },
+                          {
+                            $lookup: {
+                              from: "users",
+                              let: { user: "$user" },
+                              pipeline: [
+                                {
+                                  $match: {
+                                    $expr: {
+                                      $eq: ["$$user", "$_id"]
+                                    }
+                                  }
+                                }
+                              ],
+                              as: "user"
+                            }
+                          },
+                          {
+                            $addFields: {
+                              user: { $arrayElemAt: ["$user", 0] }
+                            }
+                          },
+                          {
+                            $replaceRoot: {
+                              newRoot: { $mergeObjects: ["$$ROOT", "$user"] }
+                            }
+                          },
+                          {
+                            $project: {
+                              user: 0,
+                              password: 0
+                            }
+                          }
+                        ],
+                        as: "provider"
+                      }
+                    },
+                    {
+                      $addFields: {
+                        provider: { $arrayElemAt: ["$provider", 0] }
+                      }
+                    }
                 ],
                 as: "otherS"
-              }
-            },
-            {
-              $addFields: {
-                categories: {
-                  $mergeObjects: [
-                    "$categories",
-                    { others: "$otherS" }
-                  ]
-                }
               }
             },
             {
@@ -510,7 +576,10 @@ export class UserService {
                           name: "$categories.name",
                           services: "$services"
                       }
-                  }
+                  },
+                  others:{$first:"$otherS"}
+
+
               }
           },              
                                {
@@ -527,7 +596,9 @@ export class UserService {
                                 orders: "$orders",
                                 chats: "$chats"
                             },
-                            categories: "$categories"
+                            categories: "$categories",
+                            others:"$others"
+
                         }
                     },
             {
