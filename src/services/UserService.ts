@@ -473,9 +473,9 @@ export class UserService {
                   gender: { $first: "$gender" },
                   role: { $first: "$role" },
                   logo: { $first: "$logo" },
-                  notifications: { $push: "$notifications" },
-                  orders: { $push: "$orders" },
-                  chats: { $push: "$chats" },
+                  notifications: { $first: "$notifications" },
+                  orders: { $first: "$orders" },
+                  chats: { $first: "$chats" },
                   categories: {
                       $push: {
                           name: "$categories.name",
