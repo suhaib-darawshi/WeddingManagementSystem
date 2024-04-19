@@ -27,6 +27,10 @@ export class ServiceProvider {
   field: string;
 
   @Property()
+  @Default(true)
+  confirmed: boolean;
+
+  @Property()
   @Default("ACTIVE")
-  status:string
+  order_status:string
 }

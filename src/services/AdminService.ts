@@ -1,5 +1,5 @@
 import {Inject, Injectable} from "@tsed/di";
-import { BadRequest, Unauthorized } from "@tsed/exceptions";
+import { BadRequest, Conflict, Unauthorized } from "@tsed/exceptions";
 import { MongooseModel } from "@tsed/mongoose";
 import { Order } from "../models/OrderModel";
 import { User } from "../models/UserModel";
@@ -8,16 +8,62 @@ import { Category } from "../models/CategoryModel";
 import { PlatformMulterFile } from "@tsed/common";
 import * as fs from 'fs';
 import * as path from 'path';
+import * as bcrypt from 'bcryptjs';
+import { CUser } from "../interfaces/CUser";
+import { ServiceProvider } from "../models/ServiceProviderModel";
+
 @Injectable()
 export class AdminService {
     constructor(
         @Inject(Order)private orderModel:MongooseModel<Order>,
         @Inject(User)private userModel:MongooseModel<User>,
         @Inject(AuthService)private auth:AuthService,
-        @Inject(Category)private categoryModel:MongooseModel<Category>
+        @Inject(Category)private categoryModel:MongooseModel<Category>,
+        @Inject(ServiceProvider) private sproviderModel:MongooseModel<ServiceProvider>,
+
         ){}
+        async deleteUser(id:string){
+            return await this.userModel.findByIdAndDelete(id);
+        }
+        async updateUser(user:Partial<User>){
+            return await this.userModel.findByIdAndUpdate(user._id,user);
+        }
+        async  hashPassword(password: string): Promise<string> {
+            return bcrypt.hash(password, await bcrypt.genSalt(10));
+        }
+        async createUser(user:User,file?:PlatformMulterFile){
+            user.role="CUSTOMER";
+        const u=await this.userModel.findOne({$or:[
+            {username:user.username},
+            {phone:user.phone}
+        ]});
+        if(u){
+            throw new Conflict("USER_ALREADY_EXIST");
+        }
+        user.password=await this.hashPassword(user.password);
+        const createdUser= await this.userModel.create(user);
+        if (file) {
+            
+            const originalExtension = path.extname(file.originalname)
+            const uploadsDir = path.join( 'public', 'uploads', createdUser._id.toString());
+            if (!fs.existsSync(uploadsDir)) {
+                fs.mkdirSync(uploadsDir, { recursive: true });
+            }
+            const targetPath = path.join(uploadsDir, `logo${originalExtension}`);
+            fs.writeFileSync(targetPath, file.buffer);
+            createdUser.logo = path.join('public','uploads', createdUser._id.toString(), `logo${originalExtension}`);
+            await createdUser.save()
+          }
+          return createdUser;
+        }
     async getCategories(){
         return await this.categoryModel.find({active:true});
+    }
+    async updateCategory(data:Partial<Category>){
+        return await this.categoryModel.updateOne({_id:data._id} , data);
+    }
+    async deleteCategory(id:string){
+        return this.categoryModel.findByIdAndDelete(id);
     }
     async signIn(userr:User){
         userr.role="ADMIN";
@@ -41,6 +87,136 @@ export class AdminService {
 
         return await this.categoryModel.create(categoryData);
             
+    }
+    async createProvider(user:CUser,file:PlatformMulterFile){
+      user.password=await this.hashPassword(user.password);
+        user.role="PROVIDER";
+        const userMod=await this.userModel.create(user);
+        user.user=userMod;
+        const provider=await this.sproviderModel.create(user);
+        if (file) {
+            const originalExtension = path.extname(file.originalname)
+            const uploadsDir = path.join( 'public', 'uploads', user._id.toString());
+            if (!fs.existsSync(uploadsDir)) {
+                fs.mkdirSync(uploadsDir, { recursive: true });
+            }
+            console.log(uploadsDir);
+            const targetPath = path.join(uploadsDir, `logo${originalExtension}`);
+            fs.writeFileSync(targetPath, file.buffer);
+            userMod.logo = path.join('public','uploads', user._id.toString(), `logo${originalExtension}`);
+            await userMod.save();
+          }
+          const data=await this.sproviderModel.aggregate([
+            {
+              $lookup:{
+                  from:"users",
+                  let:{id:userMod._id},
+                  as :"providers",
+                  pipeline: [
+                      {
+                          $match:{
+                              $expr:{
+                                
+                                  $eq:["$_id","$$id"]
+
+                                
+                              }
+                          }
+                      },
+                      { $sort: { createdAt: -1 } }, 
+                      { $limit: 100 },
+                      
+                      {
+                          $lookup:{
+                              from:"serviceproviders",
+                              let:{userId:"$_id"},
+                              as:"provider",
+                              
+                              pipeline:[  
+                                  {
+                                      $match:{
+                                          $expr:{
+                                              $eq:[ "$user", '$$userId']
+                                          }
+                                      }
+                                  },
+                                  {
+                                      $lookup:{
+                                        from:"addresses",
+                                        let:{id:"$_id"},
+                                        as:"addresses",
+                                        pipeline:[
+                                          {
+                                            $match:{
+                                              $expr:{
+                                                $eq:["$$id","$provider"]
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      $lookup:{
+                                        from :"services",
+                                        let:{id:"$_id"},
+                                        as:"services",
+                                        pipeline:[
+                                          {
+                                            $match:{
+                                              $expr:{
+                                                $eq:["$$id","$provider_id"]
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      $lookup:{
+                                        from:"galleries",
+                                        let:{id:"$_id"},
+                                        as:"works",
+                                        pipeline:[
+                                          {
+                                            $match:{
+                                              $expr:{
+                                                $eq:["$$id","$provider_id"]
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                  {$limit:1},
+                                  {
+                                      $addFields:{pid: "$_id"}
+                                    },
+                                    {
+                                      $project:{
+                                        _id:0
+                                      }
+                                    }
+                              ]
+                          }
+                      },
+                      {
+                          $addFields: {
+                              provider: { $arrayElemAt: ["$provider", 0] }
+                          }
+                      },
+                      {
+                          $replaceRoot: {
+                              newRoot: { $mergeObjects: ["$$ROOT", "$provider"] }
+                          }
+                      },
+                  ],
+              },
+              
+          },
+          {$limit:1}
+          ]);
+          return data[0]["providers"][0];
     }
     async getAdminData(user:User){
         let categoryNames = await this.categoryModel.aggregate([
@@ -139,6 +315,22 @@ export class AdminService {
                                               $match:{
                                                 $expr:{
                                                   $eq:["$$id","$provider"]
+                                                }
+                                              }
+                                            }
+                                          ]
+                                        }
+                                      },
+                                      {
+                                        $lookup:{
+                                          from :"services",
+                                          let:{id:"$_id"},
+                                          as:"services",
+                                          pipeline:[
+                                            {
+                                              $match:{
+                                                $expr:{
+                                                  $eq:["$$id","$provider_id"]
                                                 }
                                               }
                                             }
@@ -430,6 +622,9 @@ export class AdminService {
                         $push: {
                             _id: "$categories._id",
                             name: "$categories.name",
+                            logo:"$categories.logo",
+                            active:"$categories.active",
+                            showOnMain:"$categories.showOnMain",
                             services: "$services"
                         }
                     },

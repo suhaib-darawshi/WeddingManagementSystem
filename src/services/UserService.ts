@@ -65,7 +65,7 @@ export class UserService {
       const order=await this.bookingService.getById(orderId);
       if(!order) throw new Exceptions.BadRequest("Order Not Found");
       if(order.status=="IDLE"){
-        return await this.bookingService.deleteOrder(orderId);
+        return await this.bookingService.update(orderId,{status:"CANCLED"});
       }
       else{
         throw new Exceptions.Unauthorized("Order Already In Progress");
@@ -573,7 +573,9 @@ export class UserService {
                   chats: { $first: "$chats" },
                   categories: {
                       $push: {
+                          _id: "$categories._id",
                           name: "$categories.name",
+                          logo: "$categories.logo",
                           services: "$services"
                       }
                   },

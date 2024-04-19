@@ -86,7 +86,7 @@ export class SProviderService {
     async updateProviderStatus(id: string, status: string){
       const provider=await this.sproviderModel.findOne({user:id});
       if (!provider)throw new Exceptions.NotFound('Not found Provider');
-      provider.status=status;
+      provider.order_status=status;
       await provider.save();
       const  services = await this.serviceModel.find({provider_id:provider._id});
       for(const service of services){

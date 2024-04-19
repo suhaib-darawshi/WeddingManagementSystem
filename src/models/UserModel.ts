@@ -20,6 +20,10 @@ export class User {
   gender:string;
 
   @Property()
+  @Default(true)
+  status:boolean;
+
+  @Property()
   @Default("CUSTOMER")
   role:string;
 

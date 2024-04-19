@@ -5,6 +5,8 @@ export interface CUser{
     phone:{country:string,number:string};
     password:string;
     gender:string;
+    status:boolean;
+    order_status:string;
     logo: string;
     role:string;
     email: string;

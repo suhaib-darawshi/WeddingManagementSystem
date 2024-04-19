@@ -15,6 +15,9 @@ export class BookingService {
         @Inject(CustomSocketService)private socket:CustomSocketService,
         @Inject(NotificationService)private notService:NotificationService
         ){}
+        async update(id:string,order:Partial<Order>){
+            return await   this.orderModel.findByIdAndUpdate(id,order);
+        }
     async addOrder(order:Partial<Order>){
         return await this.orderModel.create(order);
     }
@@ -26,6 +29,9 @@ export class BookingService {
         }
         if(((order.service_id as Service).provider_id as ServiceProvider)._id!=user){
             throw new Unauthorized("Order Does Not Belong To you")
+        }
+        if(order.status=='CANCLED'){
+            throw new BadRequest("Order Cancled");
         }
         order.status="ACCEPTED";
         await order.save();
