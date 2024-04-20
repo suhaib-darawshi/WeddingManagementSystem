@@ -96,14 +96,14 @@ export class AdminService {
         const provider=await this.sproviderModel.create(user);
         if (file) {
             const originalExtension = path.extname(file.originalname)
-            const uploadsDir = path.join( 'public', 'uploads', user._id.toString());
+            const uploadsDir = path.join( 'public', 'uploads', userMod._id.toString());
             if (!fs.existsSync(uploadsDir)) {
                 fs.mkdirSync(uploadsDir, { recursive: true });
             }
             console.log(uploadsDir);
             const targetPath = path.join(uploadsDir, `logo${originalExtension}`);
             fs.writeFileSync(targetPath, file.buffer);
-            userMod.logo = path.join('public','uploads', user._id.toString(), `logo${originalExtension}`);
+            userMod.logo = path.join('public','uploads', userMod._id.toString(), `logo${originalExtension}`);
             await userMod.save();
           }
           const data=await this.sproviderModel.aggregate([
@@ -219,18 +219,24 @@ export class AdminService {
           return data[0]["providers"][0];
     }
     async getAdminData(user:User){
-        let categoryNames = await this.categoryModel.aggregate([
-            {
-                $group: {
-                    _id: null,
-                    names: { $push: "$name" }
-                }
+      let categoryNames = await this.categoryModel.aggregate([
+        {
+            $group: {
+                _id: null,
+                names: { $push: "$name" }
             }
-        ]);
+        }
+    ]);
+    
+    if (categoryNames.length > 0 && categoryNames[0].names.length > 0) {
+        categoryNames = categoryNames[0].names;
+    } else {
+        categoryNames = []; 
+    }
         const userInfo=await this.userModel.aggregate([
             {
                 $addFields: {
-                    allCategoryNames: categoryNames[0].names  // Assuming category names are stored in a single document array
+                    allCategoryNames: categoryNames
                 }
             },
             {
@@ -786,6 +792,62 @@ export class AdminService {
                       ]
                 }
             },
+            {
+              $lookup:{
+                from:"ratings",
+                as:"ratings",
+                pipeline:[
+                  {
+                    $lookup:{
+                      from :"users",
+                      as :"customers",
+                      let :{cid:"$customer_id",sid:"$service._id"},
+                      pipeline:[
+                        {
+                          $match:{
+                            $expr:{
+                              $eq:[ "$_id", '$$cid']
+                            }
+                          }
+                        },
+                        {$limit:1}
+                      ]
+
+
+                    }
+                  },
+                  {
+                    $lookup:{
+                      from :"services",
+                      as :"services",
+                      let :{cid:"$customer_id",sid:"$service._id"},
+                      pipeline:[
+                        {
+                          $match:{
+                            $expr:{
+                              $eq:[ "$_id", '$$sid']
+                            }
+                          }
+                        },
+                        {$limit:1}
+                      ]
+
+
+                    }
+                  },
+                  {
+                    $addFields:{
+                      customer:{ $arrayElemAt: ["$customers", 0] }
+                    }
+                  },
+                  {
+                    $addFields:{
+                      service:{ $arrayElemAt: ["$services", 0] }
+                    }
+                  }
+                ]
+              }
+            },
                     {
                         $project: {
                             user: {
@@ -800,6 +862,7 @@ export class AdminService {
                                 
                                 chats: "$chats"
                             },
+                            ratings:"$ratings",
                             categories: "$categories",
                             orders: "$orders",
                             users:"$users",
