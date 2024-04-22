@@ -14,7 +14,7 @@ interface Client {
 export class CustomSocketService {
   
     @Nsp nsp: SocketIO.Namespace;
-    private clients: Map<string, SocketIO.Socket> = new Map();
+    private clients: Map<string, SocketIO.Socket[]> = new Map();
   @Nsp("/")
   nspOther: SocketIO.Namespace; 
 
@@ -28,7 +28,14 @@ export class CustomSocketService {
   $onNamespaceInit(nsp: SocketIO.Namespace) {}
   $onConnection(@Socket socket: SocketIO.Socket, @SocketSession session: SocketSession) {
     socket.on("setId", (data: Client) => {
-      this.clients.set(data.id, socket);
+      if (!this.clients.has(data.id)){
+        this.clients.set(data.id, [socket]);
+      }
+      else{
+        let cls=this.clients.get(data.id)!;
+        cls.push(socket);
+        this.clients.set(data.id,cls);
+      }
   });
     socket.on("open chat", async(data: any) => {
       try{
@@ -41,9 +48,11 @@ export class CustomSocketService {
     socket.on("search",async(data:any)=>{
       const serviceService=this.injector.get<ServiceService>(ServiceService)!;
       const services=await serviceService.searchService(data);
-      this.clients.forEach((sockett, id) =>{
-        if(socket.id==sockett.id){
+      this.clients.forEach((socketA, id) =>{
+        for(const sockett of  socketA){
+          if(socket.id==sockett.id){
             this.sendEventToClient(id,services, "search results");
+        }
         }
     });
     })
@@ -57,22 +66,30 @@ export class CustomSocketService {
   });
   }
   $onDisconnect(@Socket socket: SocketIO.Socket) {
-    this.clients.forEach((sockett, id) =>{
-        if(socket.id==sockett.id){
-            this.clients.delete(id);
+    this.clients.forEach((socketA, id) =>{
+        
+          for(const sockett of  socketA){
+            if(socket.id==sockett.id){
+              this.clients.delete(id);
             console.log(`${id} has disconnected`);
+          }
         }
+            
+        
     });
   }
   sendEventToClient(id: string, data: any,event:string) {
     const client = this.clients.get(id);
     if (client) {
-      try{
-        client.emit(event, data);
+      for(const sockett of  client){
+        try{
+          sockett.emit(event, data);
+        }
+        catch(e){
+  
+        }
       }
-      catch( e){
-
-      }
+      
       return id;
     }
     

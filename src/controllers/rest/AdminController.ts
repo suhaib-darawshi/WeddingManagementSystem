@@ -4,8 +4,7 @@ import {Delete, Get, Post, Put} from "@tsed/schema";
 import { AdminMiddleware } from "../../middlewares/AdminMiddleware";
 import { Category } from "../../models/CategoryModel";
 import { AdminService } from "../../services/AdminService";
-import { CUser } from "src/interfaces/CUser";
-import { log } from "console";
+import { GNotification } from "../../models/GNotificationModel";
 
 @Controller("/admin")
 export class AdminController {
@@ -65,5 +64,15 @@ export class AdminController {
 
     }
     return this.adminService.createProvider(user,file);
+  }
+  @Put("/notifications")
+  @Use(AdminMiddleware)
+  createNotification(@MultipartFile("file")file:PlatformMulterFile,@BodyParams()notification:GNotification){
+    return this.adminService.createGNot(notification,file);
+  }
+  @Delete("/notifications/:id")
+  @Use(AdminMiddleware)
+  deleteNot(@PathParams("id")id:string){
+    return this.adminService.deleteNot(id);
   }
 }

@@ -11,6 +11,7 @@ import * as path from 'path';
 import * as bcrypt from 'bcryptjs';
 import { CUser } from "../interfaces/CUser";
 import { ServiceProvider } from "../models/ServiceProviderModel";
+import { GNotification } from "../models/GNotificationModel";
 
 @Injectable()
 export class AdminService {
@@ -20,8 +21,28 @@ export class AdminService {
         @Inject(AuthService)private auth:AuthService,
         @Inject(Category)private categoryModel:MongooseModel<Category>,
         @Inject(ServiceProvider) private sproviderModel:MongooseModel<ServiceProvider>,
-
+        @Inject(GNotification)private gnotModel:MongooseModel<GNotification>
         ){}
+        async deleteNot(id:string){
+          return this.gnotModel.findByIdAndDelete(id);
+        }
+        async createGNot(notData:Partial<GNotification>,file?:PlatformMulterFile){
+          const not =await this.gnotModel.create(notData);
+          if(!file) throw new BadRequest( "Image is required");
+          
+            
+            const originalExtension = path.extname(file.originalname)
+            const uploadsDir = path.join( 'public', 'uploads', "notifications");
+            if (!fs.existsSync(uploadsDir)) {
+                fs.mkdirSync(uploadsDir, { recursive: true });
+            }
+            const targetPath = path.join(uploadsDir, `${not._id.toString()}${originalExtension}`);
+            fs.writeFileSync(targetPath, file.buffer);
+            not.logo = path.join('public','uploads', "notifications", `${not._id.toString()}${originalExtension}`);
+            await not.save();
+            return not;
+          
+        }
         async deleteUser(id:string){
             return await this.userModel.findByIdAndDelete(id);
         }
@@ -522,6 +543,165 @@ export class AdminService {
                       }
                     },
                     {
+                      $lookup:{
+                        from:"orders",
+                        let:{sid:"$_id"},
+                        as :"orders",
+                        pipeline:[
+                          {
+                            $match:{
+                              $expr:{
+                                $eq:["$$sid","$service_id"]
+                              }
+                            }
+                          },
+                          { $sort: { createdAt: -1 } },  
+                        { $limit: 100 },
+                        {
+                            $lookup:{
+                                from:"users",
+                                let :{customerId:"$customer_id"},
+                                as :"customer",
+                                
+                                pipeline:[
+                                    {
+                                        $match:{
+                                            $expr:{
+                                                $eq:["$$customerId", "$_id"]
+                                            }
+                                        }
+                                        
+                                    },
+                                    {
+                                        $limit:1
+                                    },
+                                    
+                                ]
+                            }
+                        },
+                        {
+                            $addFields: {
+                                customer: { $arrayElemAt: ["$customer", 0] }
+                            }
+                        },
+                        {
+                            $lookup:{
+                                from:"services",
+                                let: { service_id: "$service_id" },
+                                as:"service",
+                                pipeline:[
+                                    {
+                                        $match: {
+                                          $expr: {
+                                            $eq: ["$$service_id", "$_id"] 
+                                          }
+                                        }
+                                      },
+                                      {
+                                        $limit:1
+                                      },
+                                    {
+                                        $lookup:{
+                                            from:"serviceproviders",
+                                            let:{provider_id: "$provider_id"},
+                                            as:"provider",
+                                            pipeline:[
+                                                {
+                                                    $match: {
+                                                      $expr: {
+                                                        $eq: ["$$provider_id", "$_id"] 
+                                                      }
+                                                    }
+                                                  },
+                                                {
+                                                    $set:{"password":0}
+                                                },
+                                                {
+                                                    $lookup:{
+                                                      from:"addresses",
+                                                      let:{id:"$_id"},
+                                                      as:"addresses",
+                                                      pipeline:[
+                                                        {
+                                                          $match:{
+                                                            $expr:{
+                                                              $eq:["$$id","$provider"]
+                                                            }
+                                                          }
+                                                        }
+                                                      ]
+                                                    }
+                                                  },
+                                                  {
+                                                    $lookup:{
+                                                      from:"galleries",
+                                                      let:{id:"$_id"},
+                                                      as:"works",
+                                                      pipeline:[
+                                                        {
+                                                          $match:{
+                                                            $expr:{
+                                                              $eq:["$$id","$provider_id"]
+                                                            }
+                                                          }
+                                                        }
+                                                      ]
+                                                    }
+                                                  },
+                                                {
+                                                  $lookup:{
+                                                    from:'users',
+                                                    let:{user:'$user'},
+                                                    as:'user',
+                                                    pipeline:[
+                                                      {
+                                                        $match:{
+                                                          $expr:{
+                                                            $eq:["$$user","$_id"]
+                                                          }
+                                                        }
+                                                      },
+                                                      
+                                                    ]
+                                                  }
+                                                },
+                                                {
+                                                  $addFields: {
+                                                      user: { $arrayElemAt: ["$user", 0] }
+                                                  }
+                                              },
+                                              {
+                                                  $replaceRoot: {
+                                                      newRoot: { $mergeObjects: ["$$ROOT", "$user"] }
+                                                  }
+                                              },
+                                              {
+                                                $project:{
+                                                  user:0,
+                                                  password:0
+                                                }
+                                              }
+                                            ]
+                                        }
+                                    },
+                                    {
+                                        $addFields: {
+                                            provider: { $arrayElemAt: ["$provider", 0] }
+                                        }
+                                      }
+                                ],
+                                
+                            }
+                        },
+                        {
+                          $addFields: {
+                              service: { $arrayElemAt: ["$service", 0] }
+                          }
+                      },
+                        ]
+                      }
+                    },
+                    {
                       $addFields: {
                         provider: { $arrayElemAt: ["$provider", 0] }
                       }
@@ -534,7 +714,7 @@ export class AdminService {
               {
                 $lookup: {
                   from: "services",
-                  let: { fetchedCats: "$allCategoryNames" },  // This assumes you have the category names collected in a previous step
+                  let: { fetchedCats: "$allCategoryNames" },  
                   pipeline: [
                     {
                       $match: {
@@ -645,13 +825,13 @@ export class AdminService {
                     from: "orders",
                     as: "orders",
                     pipeline:[
-                        { $sort: { createdAt: -1 } },  // Sorting orders by creation date in descending order
+                        { $sort: { createdAt: -1 } },  
                         { $limit: 100 },
                         {
                             $lookup:{
                                 from:"users",
                                 let :{customerId:"$customer_id"},
-                                as :"customer_info",
+                                as :"customer",
                                 
                                 pipeline:[
                                     {
@@ -671,7 +851,7 @@ export class AdminService {
                         },
                         {
                             $addFields: {
-                                customer: { $arrayElemAt: ["$customer_info", 0] }
+                                customer: { $arrayElemAt: ["$customer", 0] }
                             }
                         },
                         {
@@ -848,6 +1028,13 @@ export class AdminService {
                 ]
               }
             },
+            {
+              $lookup:{
+                from:"gnotifications",
+                as:"gnotifications",
+                pipeline:[]
+              }
+            },
                     {
                         $project: {
                             user: {
@@ -862,6 +1049,7 @@ export class AdminService {
                                 
                                 chats: "$chats"
                             },
+                            gnotifications: "$gnotifications",
                             ratings:"$ratings",
                             categories: "$categories",
                             orders: "$orders",
@@ -876,7 +1064,4 @@ export class AdminService {
         ]).exec();
         return  userInfo[0];
     }
-
-
-
 }

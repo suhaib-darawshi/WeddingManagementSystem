@@ -8,12 +8,19 @@ import {config} from "./config/index";
 import * as rest from "./controllers/rest/index";
 import { CustomSocketService } from "./services/CustomSocketService";
 import { BackupService } from "./services/BackupService";
-
+import * as fs from "fs";
+import * as Path from "path";
 @Configuration({
   ...config,
   acceptMimes: ["application/json"],
-  httpPort: parseInt(process.env.PORT!),
-  httpsPort: false, // CHANGE
+  httpsOptions:{
+    key: fs.readFileSync(Path.join("key.pem"),'utf8'),
+    cert: fs.readFileSync(Path.join("cert.pem"),'utf8'),
+  },
+  httpsPort: parseInt(process.env.PORT!) , // CHANGE
+  httpPort:false,
+  // httpPort: parseInt(process.env.PORT!),
+  // httpsPort: false, 
   disableComponentsScan: true,
   mount: {
     "/rest": [
