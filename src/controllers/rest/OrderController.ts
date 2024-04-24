@@ -34,4 +34,9 @@ export class OrderController {
   cancelOrder(@MultipartFile("file")file:PlatformMulterFile,@PathParams("id")id:string){
     return this.userService.cancelOrder(id);
   }
+  @Post("/:id/complete")
+  @Use(JwtMiddleware)
+  completeOrder(@MultipartFile("file")file:PlatformMulterFile,@PathParams("id")id:string){
+    return this.bookingService.completeOrder(id);
+  }
 }

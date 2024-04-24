@@ -18,4 +18,3 @@ export class Favorite {
   customer_id: Ref<User>
 
 }
-export const FavoriteModel: MongooseModel<Favorite> = Favorite as MongooseModel<Favorite>;

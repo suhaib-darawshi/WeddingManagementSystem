@@ -16,6 +16,15 @@ export class SProviderController {
   get() {
     return "hello";
   }
+  @Put("/create-by-email")
+  createByEmail(@MultipartFile("file")file:PlatformMulterFile,@BodyParams()user:any){
+    try {
+      user.phone = JSON.parse(user.phone);
+    } catch (e) {
+
+    }
+    return this.sproviderService.createByEmail(user,file);
+  }
   @Put("/create")
   @Use(JwtMiddleware)
   async create(@MultipartFile("file")file:PlatformMulterFile,@BodyParams()user:any,@BodyParams("key")key:string,@Req() req:Req){
@@ -55,12 +64,12 @@ export class SProviderController {
   }
   @Put("/add-work")
   @Use(JwtMiddleware)
-  addWork(@MultipartFile("file")file:PlatformMulterFile,@BodyParams()work:Gallery){
+  addWork(@MultipartFile("file")file:PlatformMulterFile,@BodyParams()work:Gallery,@Req()req:Req){
     work.type="URL"
     if(file){
       work.type="IMAGE";
     }
-    return this.sproviderService.addWork(work,file);
+    return this.sproviderService.addWork(work,file,req.user?._id??"");
   }
   @Post("/update-state/:state")
   @Use(JwtMiddleware)

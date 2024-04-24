@@ -1,7 +1,7 @@
 import {Controller, Inject} from "@tsed/di";
 import { UserService } from "../../services/UserService";
 import { Get, Post, Put } from "@tsed/schema";
-import { BodyParams, MultipartFile, PathParams, PlatformMulterFile, Req, Use } from "@tsed/common";
+import { BodyParams, MultipartFile, PathParams, PlatformMulterFile, Req, Use, UseAuth } from "@tsed/common";
 import { User } from "../../models/UserModel";
 import { JwtMiddleware } from "../../middlewares/JwtMiddleware";
 import { BadRequest, Unauthorized } from "@tsed/exceptions";
@@ -37,6 +37,16 @@ export class UserController {
     }
     return this.userService.create(user);
   }
+  @Put("/create-by-email")
+  createByEmail(@MultipartFile("file")file:PlatformMulterFile,@BodyParams()user:any){
+    try {
+      user.phone = JSON.parse(user.phone);
+    } catch (e) {
+
+    }
+    return this.userService.createByEmail(user,file);
+  }
+
   @Post(":id/update")
   @Use(JwtMiddleware)
   updateProfile(@MultipartFile("file")file:PlatformMulterFile,@BodyParams()user:User,@PathParams("id")id:string,@Req() req:Req){
@@ -72,6 +82,11 @@ export class UserController {
   @Get("/categories")
   getCategories(){
     return this.userService.getCategories();
+  }
+  @Put("/favorite/:service")
+  @Use(JwtMiddleware)
+  addToFavourites(@MultipartFile("file")file:PlatformMulterFile,@PathParams("service")service:string,@Req()req:Req){
+    return this.userService.addToFavorite(req.user?._id??"",service);
   }
   
 }

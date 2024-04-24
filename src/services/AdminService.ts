@@ -12,6 +12,7 @@ import * as bcrypt from 'bcryptjs';
 import { CUser } from "../interfaces/CUser";
 import { ServiceProvider } from "../models/ServiceProviderModel";
 import { GNotification } from "../models/GNotificationModel";
+import { Service } from "../models/ServiceModel";
 
 @Injectable()
 export class AdminService {
@@ -21,7 +22,8 @@ export class AdminService {
         @Inject(AuthService)private auth:AuthService,
         @Inject(Category)private categoryModel:MongooseModel<Category>,
         @Inject(ServiceProvider) private sproviderModel:MongooseModel<ServiceProvider>,
-        @Inject(GNotification)private gnotModel:MongooseModel<GNotification>
+        @Inject(GNotification)private gnotModel:MongooseModel<GNotification>,
+        @Inject(Service)private serviceModel:MongooseModel<Service>
         ){}
         async deleteNot(id:string){
           return this.gnotModel.findByIdAndDelete(id);
@@ -44,10 +46,30 @@ export class AdminService {
           
         }
         async deleteUser(id:string){
-            return await this.userModel.findByIdAndDelete(id);
+          await this.orderModel.deleteMany({customer_id:id});
+          return await this.userModel.findByIdAndDelete(id);
+        }
+        async deleteProvider(id:string){
+          await this.userModel.findById(id);
+          const p=await this.sproviderModel.findOne({user:id});
+          const services=await this.serviceModel.find({provider_id:p?._id});
+          for(let i of services){
+            await this.orderModel.deleteMany({service_id:i._id});
+            await i.deleteOne();
+          }          
+          await this.userModel.findByIdAndDelete(p!.user);
+          await p?.deleteOne();
         }
         async updateUser(user:Partial<User>){
             return await this.userModel.findByIdAndUpdate(user._id,user);
+        }
+        async updateProvider(u:CUser){
+          const p=await this.sproviderModel.findOne({user:u._id});
+          if(!p){
+            throw new BadRequest("Invalid provider id");
+          }
+          await this.sproviderModel.findByIdAndUpdate(p._id,u);
+          return await this.userModel.findByIdAndUpdate(u._id,u);
         }
         async  hashPassword(password: string): Promise<string> {
             return bcrypt.hash(password, await bcrypt.genSalt(10));
@@ -849,11 +871,12 @@ export class AdminService {
                                 ]
                             }
                         },
-                        {
-                            $addFields: {
-                                customer: { $arrayElemAt: ["$customer", 0] }
-                            }
-                        },
+                      //   {
+                      //     $addFields: {
+                      //         customer: { $arrayElemAt: ["$customer", 0] }
+                      //     }
+                      // },
+                        
                         {
                             $lookup:{
                                 from:"services",
@@ -954,6 +977,7 @@ export class AdminService {
                                             ]
                                         }
                                     },
+                                    
                                     {
                                         $addFields: {
                                             provider: { $arrayElemAt: ["$provider", 0] }
@@ -963,6 +987,11 @@ export class AdminService {
                                 
                             }
                         },
+                        {
+                          $addFields: {
+                              customer: { $arrayElemAt: ["$customer", 0] }
+                          }
+                      },
                         {
                             $addFields: {
                               service: { $arrayElemAt: ["$service", 0] }
@@ -981,7 +1010,7 @@ export class AdminService {
                     $lookup:{
                       from :"users",
                       as :"customers",
-                      let :{cid:"$customer_id",sid:"$service._id"},
+                      let :{cid:"$customer_id",sid:"$service_id"},
                       pipeline:[
                         {
                           $match:{
@@ -1000,7 +1029,7 @@ export class AdminService {
                     $lookup:{
                       from :"services",
                       as :"services",
-                      let :{cid:"$customer_id",sid:"$service._id"},
+                      let :{cid:"$customer_id",sid:"$service_id"},
                       pipeline:[
                         {
                           $match:{

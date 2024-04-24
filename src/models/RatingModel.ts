@@ -25,5 +25,12 @@ export class Rating {
   @Default(1)
   value: number;
 
-  
+  @Property()
+  @Default([])
+  replies:Reply[];
+}
+class Reply{
+  message:string;
+  createdAt:Date;
+  user?:Ref<User>
 }

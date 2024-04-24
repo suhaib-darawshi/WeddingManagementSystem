@@ -14,4 +14,6 @@ export interface CUser{
     longitude: number;
     field: string;
     user:any;
+    createdByEmail:boolean;
+    location:string;
 }

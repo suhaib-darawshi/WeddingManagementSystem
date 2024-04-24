@@ -31,6 +31,9 @@ export class ServiceProvider {
   confirmed: boolean;
 
   @Property()
+  location:string;
+
+  @Property()
   @Default("ACTIVE")
   order_status:string
 }

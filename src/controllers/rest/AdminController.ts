@@ -65,6 +65,17 @@ export class AdminController {
     }
     return this.adminService.createProvider(user,file);
   }
+  @Post("/providers/update")
+  @Use(AdminMiddleware)
+  async updateProvide(@MultipartFile("file")file:PlatformMulterFile,@BodyParams()user:any){
+    try{
+      user.phone=JSON.parse(user.phone);
+    }
+    catch(e){
+
+    }
+    return this.adminService.updateProvider(user);
+  }
   @Put("/notifications")
   @Use(AdminMiddleware)
   createNotification(@MultipartFile("file")file:PlatformMulterFile,@BodyParams()notification:GNotification){
@@ -74,5 +85,10 @@ export class AdminController {
   @Use(AdminMiddleware)
   deleteNot(@PathParams("id")id:string){
     return this.adminService.deleteNot(id);
+  }
+  @Delete("/providers/:id")
+  @Use(AdminMiddleware)
+  async removeProv(@PathParams("id")id:string){
+   return await this.adminService.deleteProvider(id);
   }
 }

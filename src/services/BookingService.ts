@@ -39,6 +39,13 @@ export class BookingService {
         this.socket.sendEventToClient(((order.customer_id as User)._id.toString()),order,"Order Accepted");
 
     }
+    async completeOrder(id:string){
+        const order=await this.orderModel.findById(id);
+        if(!order) throw new BadRequest("Order Not Found");
+        order.status='COMPLETED';
+        await order.save()
+        return order;
+    }
     async rejecttOrder(orderId:string,user:string){
         const order=await this.orderModel.findById(orderId).populate({path:"service_id",model:"Service"})
         if(!order){

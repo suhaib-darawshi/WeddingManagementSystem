@@ -95,8 +95,8 @@ export class SProviderService {
       }
       return provider;
     }
-    async addWork(work:Partial<Gallery>,file:PlatformMulterFile|undefined){
-      const provider=await this.sproviderModel.findOne({user:work.provider_id});
+    async addWork(work:Partial<Gallery>,file:PlatformMulterFile|undefined,id:string){
+      const provider=await this.sproviderModel.findOne({user:id});
       if(!provider) throw new BadRequest("User Not Found");
       work.provider_id=provider;
       if (file) {
@@ -154,7 +154,70 @@ export class SProviderService {
                           }
                       }
                   },
-                  
+                  {
+                    $lookup:{
+                      from:"ratings",
+                      let:{rid:"$_id"},
+                      as:"ratings",
+                      pipeline:[
+                        {
+                          $match:{
+                            $expr:{
+                              $eq:["$service_id","$$rid"],
+                            }
+                          }
+                        },
+                        {
+                          $lookup:{
+                            from :"users",
+                            as :"customers",
+                            let :{cid:"$customer_id",sid:"$service_id"},
+                            pipeline:[
+                              {
+                                $match:{
+                                  $expr:{
+                                    $eq:[ "$_id", '$$cid']
+                                  }
+                                }
+                              },
+                              {$limit:1}
+                            ]
+      
+      
+                          }
+                        },
+                        {
+                          $lookup:{
+                            from :"services",
+                            as :"services",
+                            let :{cid:"$customer_id",sid:"$service_id"},
+                            pipeline:[
+                              {
+                                $match:{
+                                  $expr:{
+                                    $eq:[ "$_id", '$$sid']
+                                  }
+                                }
+                              },
+                              {$limit:1}
+                            ]
+      
+      
+                          }
+                        },
+                        {
+                          $addFields:{
+                            customer:{ $arrayElemAt: ["$customers", 0] }
+                          }
+                        },
+                        {
+                          $addFields:{
+                            service:{ $arrayElemAt: ["$services", 0] }
+                          }
+                        }
+                      ]
+                    }
+                  },
                   
               ]
           }
@@ -204,6 +267,47 @@ export class SProviderService {
         await this.mailServer.sendAuthEmail(user.email,"Confirm your email for Rafeed",x);
         // TODO : send sms to verify
         return this.auth.generateToken(user);
+    }
+    async createByEmail(user:CUser,file?:PlatformMulterFile){
+      user.role="CUSTOMER";
+          user.createdByEmail=true;
+          let searchConditions = [];
+
+      if (user.phone && user.phone.number) {
+          searchConditions.push({ "phone.number": user.phone.number });
+      }
+      
+      if (user.username) {
+          searchConditions.push({ username: user.username });
+      }
+      
+      if (user.email) {
+          searchConditions.push({ email: user.email });
+      }
+      
+      let u = await this.userModel.findOne({ $or: searchConditions }).lean();
+      if(u){
+        throw new Exceptions.Conflict("USER_ALREADY_EXIST");
+      }
+      user.createdByEmail=true;
+      user.password=await this.hashPassword(user.password);
+      user.role="PROVIDER";
+      const userMod=await this.userModel.create(user);
+      user.user=userMod;
+      const provider=await this.sproviderModel.create(user);
+      if (file) {
+          const originalExtension = path.extname(file.originalname)
+          const uploadsDir = path.join( 'public', 'uploads', user._id.toString());
+          if (!fs.existsSync(uploadsDir)) {
+              fs.mkdirSync(uploadsDir, { recursive: true });
+          }
+          console.log(uploadsDir);
+          const targetPath = path.join(uploadsDir, `logo${originalExtension}`);
+          fs.writeFileSync(targetPath, file.buffer);
+          userMod.logo = path.join('public','uploads', user._id.toString(), `logo${originalExtension}`);
+          await userMod.save();
+        }
+        return {user : await this.getUserInfo(userMod),token:this.auth.generateToken(userMod)};
     }
     async createAccount(user:CUser,file:PlatformMulterFile){
         user.password=await this.hashPassword(user.password);
@@ -309,6 +413,42 @@ export class SProviderService {
                                     $eq:["$$provider",'$provider_id']
                                 }
                             }
+                        },
+                        {
+                          $lookup:{
+                            from:"ratings",
+                            as:"ratings",
+                            let:{sid:"$_id" },
+                            pipeline:[
+                              {$match:{
+                                $expr:{
+                                  $eq:["$service_id","$$sid"],
+                                }
+                              }
+                              },
+                              {
+                                $lookup:{
+                                  from:"users",
+                                  as:"user",
+                                  let:{uid:"$customer_id"} ,
+                                  pipeline:[
+                                    {$match:{
+                                      $expr:{
+                                        $eq:["$_id","$$uid"],
+                                      }
+                                    }
+                                    },
+                                    {$limit:1}
+                                  ]
+                                }
+                              },
+                              {
+                                $addFields: {
+                                    user: { $arrayElemAt: ["$user", 0] }
+                                }
+                            },
+                            ]
+                          }
                         },
                         {
                             $lookup:{
