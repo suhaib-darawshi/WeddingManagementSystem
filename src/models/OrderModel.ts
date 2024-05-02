@@ -18,11 +18,13 @@ export class Order {
   @Ref(Service)
   service_id:Ref<Service>;
 
-
   @Property()
   @Default(Date.now())
   order_date: Date;
 
+  @Property()
+  paymentId:string;
+  
   @Property()
   @Default("IDLE")
   status:string;  

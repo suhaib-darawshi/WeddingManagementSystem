@@ -8,6 +8,7 @@ import { NotificationService } from "./NotificationService";
 import { ServiceService } from "./ServiceService";
 interface Client {
     id: string;
+    role:string
   }
   
 @SocketService("socket")
@@ -15,6 +16,9 @@ export class CustomSocketService {
   
     @Nsp nsp: SocketIO.Namespace;
     private clients: Map<string, SocketIO.Socket[]> = new Map();
+    private customers:SocketIO.Socket[]=[];
+    private providers:SocketIO.Socket[]=[];
+    private admins:SocketIO.Socket[]=[];
   @Nsp("/")
   nspOther: SocketIO.Namespace; 
 
@@ -36,6 +40,17 @@ export class CustomSocketService {
         cls.push(socket);
         this.clients.set(data.id,cls);
       }
+      switch(data.role){
+        case "CUSTOMER":
+          this.customers.push(socket);
+          break;
+        case "PROVIDER":
+          this.providers.push(socket);
+          break;
+        case "ADMIN":
+          this.admins.push(socket);
+          break;
+      }
   });
     socket.on("open chat", async(data: any) => {
       try{
@@ -48,9 +63,14 @@ export class CustomSocketService {
     socket.on("search",async(data:any)=>{
       const serviceService=this.injector.get<ServiceService>(ServiceService)!;
       const services=await serviceService.searchService(data);
+      console.log("services: "+services);
+      console.log(this.clients.size);
+      console.log(socket.id)
       this.clients.forEach((socketA, id) =>{
         for(const sockett of  socketA){
+          console.log(socket.id)
           if(socket.id==sockett.id){
+            console.log("true");
             this.sendEventToClient(id,services, "search results");
         }
         }
@@ -77,12 +97,178 @@ export class CustomSocketService {
             
         
     });
+    for(const i of this.admins){
+      if(socket.id==i.id){
+        this.admins = this.admins.filter(admin => admin.id !== socket.id);
+      }
+    }
+    for(const i of this.customers){
+      if(socket.id==i.id){
+        this.customers = this.customers.filter(admin => admin.id !== socket.id);
+      }
+    }
+    for(const i of this.providers){
+      if(socket.id==i.id){
+        this.providers = this.providers.filter(admin => admin.id !== socket.id);
+      }
+    }
+  }
+  onNewCustomer(user:any){
+    for(const socket of this.admins){
+      try{
+        console.log("emited");
+        socket.emit("New Customer", user);
+      }
+      catch(e){
+  
+      }
+    }
+  }
+  onNewNotification(data:any){
+    if(data['type']!="PROVIDER"){
+      for(const socket of this.customers){
+        try{
+          console.log("emited");
+          socket.emit("New Notification", data);
+        }
+        catch(e){
+    
+        }
+      }
+    }
+    else if(data['type']!="CUSTOMER"){
+      for(const socket of this.providers){
+        try{
+          console.log("emited");
+          socket.emit("New Notification", data);
+        }
+        catch(e){
+    
+        }
+      }
+    }
+  }
+  onNewProvider(provider:any){
+    for(const socket of this.admins){
+      try{
+        console.log("emited");
+        socket.emit("New Provider", provider);
+      }
+      catch(e){
+  
+      }
+    }
+    for(const socket of this.customers){
+      try{
+        console.log("emited");
+        socket.emit("New Provider", provider);
+      }
+      catch(e){
+  
+      }
+    }
+  }
+  onNewCategory(category:any){
+    for(const socket of this.customers){
+      try{
+        console.log("emited");
+        socket.emit("New Category", category);
+      }
+      catch(e){
+  
+      }
+    }
+    for(const socket of this.providers){
+      try{
+        console.log("emited");
+        socket.emit("New Category", category);
+      }
+      catch(e){
+  
+      }
+    }
+    for(const socket of this.admins){
+      try{
+        console.log("emited");
+        socket.emit("New Category", category);
+      }
+      catch(e){
+  
+      }
+    }
+  }
+  onNewService(service:any) {
+    for(const socket of this.customers){
+      try{
+        console.log("emited");
+        socket.emit("New Service", service);
+      }
+      catch(e){
+  
+      }
+    }
+    for(const socket of this.admins){
+      try{
+        console.log("emited");
+        socket.emit("New Service", service);
+      }
+      catch(e){
+  
+      }
+    }
+  }
+  onNewOrder(order:any){
+    for(const socket of this.admins){
+      try{
+        console.log("emited");
+        socket.emit("New Order", order);
+      }
+      catch(e){
+  
+      }
+    }
+  }
+  onNewAd(data:any){
+    for(const socket of this.customers){
+      try{
+        console.log("emited");
+        socket.emit("Ads Updated", data);
+      }
+      catch(e){
+  
+      }
+    }
+    for(const socket of this.admins){
+      try{
+        console.log("emited");
+        socket.emit("Ads Updated", data);
+      }
+      catch(e){
+  
+      }
+    }
+  }
+  onOrderUpdated(data:any){
+    for(const socket of this.admins){
+      try{
+        console.log("emited");
+        socket.emit("Order Updated", data);
+      }
+      catch(e){
+  
+      }
+    }
   }
   sendEventToClient(id: string, data: any,event:string) {
     const client = this.clients.get(id);
+    console.log(data);
+    if(event.includes("rder")){
+      this.onOrderUpdated(data);
+    }
     if (client) {
       for(const sockett of  client){
         try{
+          console.log("emited");
           sockett.emit(event, data);
         }
         catch(e){

@@ -28,8 +28,11 @@ export class User {
   status:boolean;
 
   @Property()
+  marriageDate:Date;
+  @Property()
   email: string;
-
+  @Property()
+  marriageCalc:any;
   @Property()
   @Default("CUSTOMER")
   role:string;

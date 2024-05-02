@@ -36,7 +36,7 @@ export class OrderController {
   }
   @Post("/:id/complete")
   @Use(JwtMiddleware)
-  completeOrder(@MultipartFile("file")file:PlatformMulterFile,@PathParams("id")id:string){
-    return this.bookingService.completeOrder(id);
+  completeOrder(@MultipartFile("file")file:PlatformMulterFile,@PathParams("id")id:string,@Req()req:Req){
+    return this.bookingService.completeOrder(id,req.user!._id);
   }
 }

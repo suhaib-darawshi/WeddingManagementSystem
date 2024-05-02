@@ -2,6 +2,7 @@ import { Model, ObjectID, Ref } from "@tsed/mongoose";
 import {Default, Property} from "@tsed/schema";
 import { ServiceProvider } from "./ServiceProviderModel";
 import { Gallery } from "./GalleryModel";
+import { Category } from "./CategoryModel";
 @Model({
   schemaOptions: {
     timestamps: true, 
@@ -28,10 +29,11 @@ export class Service {
   @Property()
   @Default("")
   description: string;
-
   @Property()
-  @Default("")
-  category: string;
+  link: string;
+
+  @Ref(Category)
+  category: Ref<Category>;
 
   @Property()
   @Default([])

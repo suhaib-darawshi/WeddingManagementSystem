@@ -1,6 +1,6 @@
 import {Controller, Inject} from "@tsed/di";
 import { UserService } from "../../services/UserService";
-import { Get, Post, Put } from "@tsed/schema";
+import { Delete, Get, Post, Put } from "@tsed/schema";
 import { BodyParams, MultipartFile, PathParams, PlatformMulterFile, Req, Use, UseAuth } from "@tsed/common";
 import { User } from "../../models/UserModel";
 import { JwtMiddleware } from "../../middlewares/JwtMiddleware";
@@ -19,8 +19,13 @@ export class UserController {
   async getProviderProfile(@PathParams("id")id:string){
     return await this.sproviderService.getProvider(id);
   }
+  @Get("/profile")
+  @Use(JwtMiddleware)
+  async getUserProfile(@Req()req:Req){
+    return await this.userService.loginByAuth(req.user!._id!);
+  }
   @Post("/signin")
-  signIn(@MultipartFile("file")file:PlatformMulterFile,@BodyParams()user:User){
+  signIn(@MultipartFile("file")file:PlatformMulterFile,@BodyParams()user:CUser){
     return this.userService.signin(user);
   }
   @Post("/signup")
@@ -47,13 +52,31 @@ export class UserController {
     return this.userService.createByEmail(user,file);
   }
 
-  @Post(":id/update")
+  @Post("/:id/update")
   @Use(JwtMiddleware)
-  updateProfile(@MultipartFile("file")file:PlatformMulterFile,@BodyParams()user:User,@PathParams("id")id:string,@Req() req:Req){
+  updateProfile(@MultipartFile("file")file:PlatformMulterFile,@BodyParams()user:any,@PathParams("id")id:string,@Req() req:Req){
     if(req.user?._id!=id){
       throw new Unauthorized("TOKEN_NOT_VALID");
     }
+    try{
+      user.phone=JSON.parse(user.phone);
+    }
+    catch{}
     return this.userService.updateProfile(id,user,file);
+  }
+  @Put("/marriage-date")
+  @Use(JwtMiddleware)
+  async putMarriageDate(@MultipartFile("file")file:PlatformMulterFile,@BodyParams()user:any,@Req() req:Req){
+    return await this.userService.updateMarriageDate(req.user!._id,user.date);
+  }
+  @Post("/marriage-calc")
+  @Use(JwtMiddleware)
+  async updateMarriageCalc(@MultipartFile("file")file:PlatformMulterFile,@BodyParams()user:any,@Req() req:Req){
+    try{
+      user=JSON.parse(user);
+
+    }catch{}
+    return await this.userService.updateMarriageCalc(req.user!._id,user);
   }
   @Post("/forget")
   forgetPassword(@MultipartFile("file")file:PlatformMulterFile,@BodyParams()phone:{country:string,number:string}){
@@ -87,6 +110,11 @@ export class UserController {
   @Use(JwtMiddleware)
   addToFavourites(@MultipartFile("file")file:PlatformMulterFile,@PathParams("service")service:string,@Req()req:Req){
     return this.userService.addToFavorite(req.user?._id??"",service);
+  }
+  @Delete("/favorite/:service")
+  @Use(JwtMiddleware)
+  deleteFavourites(@MultipartFile("file")file:PlatformMulterFile,@PathParams("service")service:string,@Req()req:Req){
+    return this.userService.deleteFromFavorite(req.user?._id??"",service);
   }
   
 }

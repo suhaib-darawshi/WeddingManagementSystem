@@ -1,4 +1,4 @@
-import {Inject, Injectable} from "@tsed/di";
+import {Inject, Injectable, InjectorService} from "@tsed/di";
 import { ServiceService } from "./ServiceService";
 import { ServiceProvider } from "../models/ServiceProviderModel";
 import { MongooseModel } from "@tsed/mongoose";
@@ -16,6 +16,9 @@ import { MailServerService } from "./MailServerService";
 import { Gallery } from "../models/GalleryModel";
 import { Address } from "../models/AddressModel";
 import { pipeline } from "stream";
+import { CustomSocketService } from "./CustomSocketService";
+import { SmsService } from "./SmsService";
+import { Category } from "../models/CategoryModel";
 
 @Injectable()
 export class SProviderService {
@@ -27,7 +30,11 @@ export class SProviderService {
         @Inject(MailServerService)private mailServer :MailServerService,
         @Inject(Gallery)private galleryModel:MongooseModel<Gallery>,
         @Inject(Service)private serviceModel:MongooseModel<Service>,
-        @Inject(Address)private addressModel:MongooseModel<Address>
+        @Inject(Address)private addressModel:MongooseModel<Address>,
+        private injector: InjectorService,
+        @Inject(SmsService)private sms:SmsService,
+        @Inject(Category)private categoryMode:MongooseModel<Category>
+
     ){}
     async addAddres(id:string,address:Partial<Address>){
       const provider = await this.sproviderModel.findOne({user:id});
@@ -35,7 +42,7 @@ export class SProviderService {
       address.provider=provider;
       return await this.addressModel.create(address);
     }
-    async updateAccount(id:string,updateData:Partial<CUser>,file?:PlatformMulterFile) {
+    async updateAccount(id:string,updateData:any,file?:PlatformMulterFile) {
       const user = await this.userModel.findById(id);
       if(!user) throw new  Exceptions.NotFound("User not found");
       if (file) {
@@ -52,6 +59,8 @@ export class SProviderService {
           user.logo = path.join('public','uploads', user._id.toString(), 'logo'+originalExtension);
         }
         updateData.logo=user.logo;
+        const category=await this.categoryMode.findOne({name:updateData.category})
+        updateData.category=category;
         await this.sproviderModel.updateOne({user:user._id},updateData);
         return await this.userModel.findByIdAndUpdate(id,updateData);
     }
@@ -64,9 +73,11 @@ export class SProviderService {
       if(!service) throw new BadRequest("Service Not Found");
       return await this.serviceModel.findByIdAndUpdate(id,{status:state});  
     }
-    async updateService(id:string,service:Partial<Service>,file:PlatformMulterFile|undefined){
-      const srvc=await this.serviceModel.findById(id).populate({path:"provider_id",model:"ServiceProvicer"});
+    async updateService(id:string,service:any,file:PlatformMulterFile|undefined){
+      const srvc=await this.serviceModel.findById(id).populate({path:"provider_id",model:"ServiceProvider"});
       if(!srvc) throw new Exceptions.NotFound('Service not found');
+      const category=await this.categoryMode.findOne({name:service.category});
+      service.category=category;
       if (file) {
         if (fs.existsSync(srvc.logo)) {
           fs.unlinkSync(srvc.logo); // Delete the old file
@@ -113,6 +124,9 @@ export class SProviderService {
       }
       return await this.galleryModel.create(work);
     }
+    async deleteWork(id:string){
+      return await this.galleryModel.findByIdAndDelete(id);
+    }
     async getProvider(id:string){
       const doc= await this.userModel.aggregate(
         [
@@ -120,6 +134,19 @@ export class SProviderService {
             $match: {
                 _id: id,
             }
+        },
+        {
+          $lookup:{
+            from:"gnotifications",
+            as:"gnotifications",
+            pipeline:[
+              {$match:{
+                $expr:{
+                  $not:{$eq:["$type","CUSTOMER"]}
+                }
+              }}
+            ]
+          }
         },
         {
           $lookup:{
@@ -265,11 +292,12 @@ export class SProviderService {
         user.password=x;
         console.log(user);
         await this.mailServer.sendAuthEmail(user.email,"Confirm your email for Rafeed",x);
+        await this.sms.sendVerification(user.phone,x);
         // TODO : send sms to verify
         return this.auth.generateToken(user);
     }
-    async createByEmail(user:CUser,file?:PlatformMulterFile){
-      user.role="CUSTOMER";
+    async createByEmail(user:any,file?:PlatformMulterFile){
+      user.role="PROVIDER";
           user.createdByEmail=true;
           let searchConditions = [];
 
@@ -277,9 +305,7 @@ export class SProviderService {
           searchConditions.push({ "phone.number": user.phone.number });
       }
       
-      if (user.username) {
-          searchConditions.push({ username: user.username });
-      }
+      
       
       if (user.email) {
           searchConditions.push({ email: user.email });
@@ -307,27 +333,36 @@ export class SProviderService {
           userMod.logo = path.join('public','uploads', user._id.toString(), `logo${originalExtension}`);
           await userMod.save();
         }
-        return {user : await this.getUserInfo(userMod),token:this.auth.generateToken(userMod)};
+        const socket = this.injector.get<CustomSocketService>(CustomSocketService)!;
+        const data=await this.getUserInfo(userMod);
+        socket.onNewProvider(data);
+        return {user : data,token:this.auth.generateToken(userMod)};
     }
-    async createAccount(user:CUser,file:PlatformMulterFile){
+    async createAccount(user:any,file:PlatformMulterFile){
+      console.log(user);
         user.password=await this.hashPassword(user.password);
         user.role="PROVIDER";
         const userMod=await this.userModel.create(user);
         user.user=userMod;
+        const category=await this.categoryMode.findOne({name:user.category})
+        user.category=category;
         const provider=await this.sproviderModel.create(user);
         if (file) {
             const originalExtension = path.extname(file.originalname)
-            const uploadsDir = path.join( 'public', 'uploads', user._id.toString());
+            const uploadsDir = path.join( 'public', 'uploads', userMod._id.toString());
             if (!fs.existsSync(uploadsDir)) {
                 fs.mkdirSync(uploadsDir, { recursive: true });
             }
             console.log(uploadsDir);
             const targetPath = path.join(uploadsDir, `logo${originalExtension}`);
             fs.writeFileSync(targetPath, file.buffer);
-            userMod.logo = path.join('public','uploads', user._id.toString(), `logo${originalExtension}`);
+            userMod.logo = path.join('public','uploads', userMod._id.toString(), `logo${originalExtension}`);
             await userMod.save();
           }
-          return {user : await this.getUserInfo(userMod),token:this.auth.generateToken(userMod)};
+          const socket = this.injector.get<CustomSocketService>(CustomSocketService)!;
+          const data=await this.getUserInfo(userMod);
+          socket.onNewProvider(data);
+          return {user : data,token:this.auth.generateToken(userMod)};
     }
 
     async getUserInfo(user:User){
@@ -387,6 +422,19 @@ export class SProviderService {
             },
             {
               $lookup:{
+                from:"gnotifications",
+                as:"gnotifications",
+                pipeline:[
+                  {$match:{
+                    $expr:{
+                      $not:{$eq:["$type","CUSTOMER"]}
+                    }
+                  }}
+                ]
+              }
+            },
+            {
+              $lookup:{
                 from:"galleries",
                 let:{provider:"$info.pid"}, 
                 as:"works",
@@ -414,6 +462,37 @@ export class SProviderService {
                                 }
                             }
                         },
+                        {
+                          $lookup: {
+                              from: "categories",
+                              let: { id: "$category" },
+                              as: "categoryDetails",
+                              pipeline: [
+                                {
+                                  $match:{
+                                    $expr:{
+                                      $eq:["$_id","$$id"]
+                                    }
+                                  }
+                                },
+                                {
+                                  $limit:1
+                                }
+                              ]
+                          }
+                      },
+                      {
+                          $addFields: {
+                              category: {
+                                  $arrayElemAt: ["$categoryDetails.name", 0]
+                              }
+                          }
+                      },
+                      {
+                          $project: {
+                              categoryDetails: 0  
+                          }
+                      },
                         {
                           $lookup:{
                             from:"ratings",
@@ -473,10 +552,11 @@ export class SProviderService {
                                             {
                                                 $match:{
                                                     $expr:{
-                                                        eq:["$$customer","$_id"]
+                                                        $eq:["$$customer","$_id"]
                                                     }
                                                 }
                                             },
+                                            {$limit:1},
                                             {
                                                 $set:{"password":0}
                                             }
@@ -584,7 +664,7 @@ export class SProviderService {
     async  hashPassword(password: string): Promise<string> {
         return bcrypt.hash(password, await bcrypt.genSalt(10));
     }
-    async createService(service:Service,id:string,file:PlatformMulterFile){
+    async createService(service:any,id:string,file:PlatformMulterFile){
       const user=await this.userModel.findById(id);
       if(!user){
         throw new BadRequest("USER_NOT_FOUND");
@@ -594,6 +674,8 @@ export class SProviderService {
             throw new BadRequest("PPROVIDER_NOT_FOUND");
         }
         service.provider_id=provider;
+        const category=await this.categoryMode.findOne({name:service.category});
+        service.category=category;
         const srvc=await this.serviceService.createService(service);
         if (file) {
             const originalExtension = path.extname(file.originalname)
@@ -605,7 +687,10 @@ export class SProviderService {
             fs.writeFileSync(targetPath, file.buffer);
             srvc.logo = path.join('public','uploads', id, 'services',srvc._id.toString(), 'serviceLogo'+originalExtension);
           }
+          const socket = this.injector.get<CustomSocketService>(CustomSocketService)!;
+          socket.onNewService({service:srvc,user:id});
         await srvc.save();
+        srvc.category=category!.name;
         return srvc;
     }
 }

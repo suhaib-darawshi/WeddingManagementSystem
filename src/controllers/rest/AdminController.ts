@@ -1,4 +1,4 @@
-import { BodyParams, MultipartFile, PathParams, PlatformMulterFile, Use } from "@tsed/common";
+import { BodyParams, MultipartFile, PathParams, PlatformMulterFile, Req, Res, Use } from "@tsed/common";
 import {Controller, Inject} from "@tsed/di";
 import {Delete, Get, Post, Put} from "@tsed/schema";
 import { AdminMiddleware } from "../../middlewares/AdminMiddleware";
@@ -13,6 +13,14 @@ export class AdminController {
   get() {
     return "hello";
   }
+  @Post("/get-cloud")
+  @Use(AdminMiddleware)
+  async fetchHistory(@MultipartFile("file") file: PlatformMulterFile,@Req()req:Req,@Res()res:Res,@BodyParams("orders")orders:string[]){
+    res.setHeader('Content-Disposition', 'attachment; filename="orders.xlsx"');
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    const xfile= await this.adminService.getOrdersFile(orders);
+    return xfile;
+  }
   @Put("/category")
   // @Use(AdminMiddleware)
   createCategory(@MultipartFile("file")file:PlatformMulterFile,@BodyParams()category:Category){
@@ -21,7 +29,7 @@ export class AdminController {
   @Post("/category/update")
   @Use(AdminMiddleware)
   updateCategory(@MultipartFile("file")file:PlatformMulterFile,@BodyParams() category:Category){
-    return this.adminService.updateCategory(category);
+    return this.adminService.updateCategory(category,file);
   }
   @Delete("/category/:id")
   @Use(AdminMiddleware)
@@ -56,7 +64,7 @@ export class AdminController {
   }
   @Put("/providers")
   @Use(AdminMiddleware)
-  create(@MultipartFile("file")file:PlatformMulterFile,@BodyParams()user:any){
+  create(@MultipartFile("file")file:PlatformMulterFile,@MultipartFile("file2")file2:PlatformMulterFile,@BodyParams()user:any){
     try{
       user.phone=JSON.parse(user.phone);
     }
@@ -76,6 +84,16 @@ export class AdminController {
     }
     return this.adminService.updateProvider(user);
   }
+  @Put("/ads")
+  @Use(AdminMiddleware)
+  createAds(@MultipartFile("file")file:PlatformMulterFile,@BodyParams()ad:any){
+    return this.adminService.addAds(ad,file);
+  } 
+  @Delete("/ad/:id")
+  @Use(AdminMiddleware)
+  deleteAds(@PathParams("id")id:string){
+    return this.adminService.deleteAds(id);
+  } 
   @Put("/notifications")
   @Use(AdminMiddleware)
   createNotification(@MultipartFile("file")file:PlatformMulterFile,@BodyParams()notification:GNotification){

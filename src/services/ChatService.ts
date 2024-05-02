@@ -1,4 +1,4 @@
-import {Inject, Injectable, Service} from "@tsed/di";
+import {Inject, Injectable, InjectorService, Service} from "@tsed/di";
 import { Chat } from "../models/ChatModel";
 import { MongooseModel } from "@tsed/mongoose";
 import { Message } from "../models/MessageModel";
@@ -18,10 +18,11 @@ export class ChatService {
         @Inject(Chat)private chatModel:MongooseModel<Chat>,
         @Inject(Message)private messageModel:MongooseModel<Message>,
         @Inject(NotificationService)private notService:NotificationService,
-        @Inject(CustomSocketService)private socket:CustomSocketService,
+        // @Inject(CustomSocketService)private socket:CustomSocketService,
         @Inject(User)private userModel:MongooseModel<User>,
-        @Inject(ServiceProvider)private sproviderModel:MongooseModel<ServiceProvider>
-        ){}
+        @Inject(ServiceProvider)private sproviderModel:MongooseModel<ServiceProvider>,
+        private injector: InjectorService,
+                ){}
         async createNewChat(users:any[]){
             return await this.chatModel.create({users:users})
         }
@@ -34,8 +35,8 @@ export class ChatService {
             const msg = await this.messageModel.create(message);
             chat.messages.push(msg);
             await chat.save();
-            
-            this.socket.sendEventToClient(message.receiver_id!.toString(),chat,"New Chat")
+            const socket = this.injector.get<CustomSocketService>(CustomSocketService)!;
+            socket.sendEventToClient(message.receiver_id!.toString(),chat,"New Chat")
             return chat;
         }
         async getUserChats(userId: string) {
@@ -65,7 +66,10 @@ export class ChatService {
             const chat=await this.chatModel.findById(chatId).populate({path:"messages",model:"Message"});
             if(chat){
                 for(const message of (chat.messages as Message[])){
-                    message.is_seen=true;
+                    if(message.receiver_id.toString()==userId){
+                        message.is_seen=true;
+                        await this.messageModel.findByIdAndUpdate(message._id,{is_seen:true});
+                    }
                     
                 }
                 await chat.save();
@@ -80,6 +84,9 @@ export class ChatService {
             ]}).exec();
             if(!chat){
                 chat =await this.createNewChat([senderId,new mongoose.Types.ObjectId(message.receiver_id?.toString())]);
+                const c=await this.chatModel.findById(chat._id).populate({path:"users",model:"User"})
+                const socket = this.injector.get<CustomSocketService>(CustomSocketService)!;
+                socket.sendEventToClient(message.receiver_id!.toString(),c,"New Chat")
             }
             const msg=await this.messageModel.create(message);
             if(message.type=="IMAGE"){
@@ -100,7 +107,8 @@ export class ChatService {
             }
             chat!.messages.push(msg);
             await chat.save();
-            this.socket.sendEventToClient(message.receiver_id!.toString(),{message:msg,chat:chat._id!},"New Message");
+            const socket = this.injector.get<CustomSocketService>(CustomSocketService)!;
+            socket.sendEventToClient(msg.receiver_id!.toString(),{message:msg,chat:chat._id!},"New Message");
             return chat.populate([{path:"messages"},{path:"users",select:"-password"}]);
         }
     

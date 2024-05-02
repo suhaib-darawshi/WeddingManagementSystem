@@ -71,6 +71,11 @@ export class SProviderController {
     }
     return this.sproviderService.addWork(work,file,req.user?._id??"");
   }
+  @Delete("/delete-work/:id")
+  @Use(JwtMiddleware)
+  deleteWork(@PathParams("id")id:string){
+    return this.sproviderService.deleteWork(id);
+  }
   @Post("/update-state/:state")
   @Use(JwtMiddleware)
   updateState(@MultipartFile("file")file:PlatformMulterFile,@Req() req:Req,@PathParams("state")state:string){
@@ -110,10 +115,13 @@ export class SProviderController {
   }
   @Post("/update")
   @Use(JwtMiddleware)
-  updateAccount(@MultipartFile("file")file:PlatformMulterFile,@Req()req:Req,@BodyParams()user:CUser){
+  updateAccount(@MultipartFile("file")file:PlatformMulterFile,@Req()req:Req,@BodyParams()user:any){
     if(!req.user?._id){
       throw new Unauthorized("User Not Found");
     }
+    try{
+      user.phone=JSON.parse(user.phone);
+    }catch{}
     return this.sproviderService.updateAccount(req.user._id,user,file);
   }
   @Put("/add-address")

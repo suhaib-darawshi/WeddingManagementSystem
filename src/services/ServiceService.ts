@@ -32,7 +32,215 @@ export class ServiceService {
         return rating;
     }
     async searchService(searchText:string){
-        const services=await this.serviceModel.find({title:new RegExp(searchText, 'i')}).populate({path:"provider_id",model:"ServiceProvider",populate:{path:"user",model:"User"}});
+        if(searchText.length==0) {
+            const services = await this.serviceModel.aggregate([
+                
+                  {
+                    $lookup:{
+                      from:"ratings",
+                      as:"ratings",
+                      let:{sid:"$_id" },
+                      pipeline:[
+                        {$match:{
+                          $expr:{
+                            $eq:["$service_id","$$sid"],
+                          }
+                        }
+                        },
+                        {
+                          $lookup:{
+                            from:"users",
+                            as:"user",
+                            let:{uid:"$customer_id"} ,
+                            pipeline:[
+                              {$match:{
+                                $expr:{
+                                  $eq:["$_id","$$uid"],
+                                }
+                              }
+                              },
+                              {$limit:1}
+                            ]
+                          }
+                        },
+                        {
+                          $addFields: {
+                              user: { $arrayElemAt: ["$user", 0] }
+                          }
+                      },
+                      ]
+                    }
+                  },
+                  {
+                      $lookup: {
+                        from: "serviceproviders",
+                        let: { provider_id: "$provider_id" },
+                        pipeline: [
+                          {
+                            $match: {
+                              $expr: {
+                                $eq: ["$$provider_id", "$_id"]
+                              }
+                            }
+                          },
+                          { $set: { "password": 0 } },
+                          {
+                            $addFields:{pid: "$_id"}
+                          },
+                          {
+                            $project:{
+                              _id:0
+                            }
+                          },
+                          {
+                            $lookup: {
+                              from: "users",
+                              let: { user: "$user" },
+                              pipeline: [
+                                {
+                                  $match: {
+                                    $expr: {
+                                      $eq: ["$$user", "$_id"]
+                                    }
+                                  }
+                                }
+                              ],
+                              as: "user"
+                            }
+                          },
+                          {
+                            $addFields: {
+                              user: { $arrayElemAt: ["$user", 0] }
+                            }
+                          },
+                          {
+                            $replaceRoot: {
+                              newRoot: { $mergeObjects: ["$$ROOT", "$user"] }
+                            }
+                          },
+                          {
+                            $project: {
+                              user: 0,
+                              password: 0
+                            }
+                          }
+                        ],
+                        as: "provider"
+                      }
+                    },
+                    {
+                      $addFields: {
+                        provider: { $arrayElemAt: ["$provider", 0] }
+                      }
+                    }
+            ]);
+            return services;
+        }
+        const services = await this.serviceModel.aggregate([
+            {
+                $match: {
+                  title: { $regex: searchText, $options: 'i' },
+                },
+              },
+              {
+                $lookup:{
+                  from:"ratings",
+                  as:"ratings",
+                  let:{sid:"$_id" },
+                  pipeline:[
+                    {$match:{
+                      $expr:{
+                        $eq:["$service_id","$$sid"],
+                      }
+                    }
+                    },
+                    {
+                      $lookup:{
+                        from:"users",
+                        as:"user",
+                        let:{uid:"$customer_id"} ,
+                        pipeline:[
+                          {$match:{
+                            $expr:{
+                              $eq:["$_id","$$uid"],
+                            }
+                          }
+                          },
+                          {$limit:1}
+                        ]
+                      }
+                    },
+                    {
+                      $addFields: {
+                          user: { $arrayElemAt: ["$user", 0] }
+                      }
+                  },
+                  ]
+                }
+              },
+              {
+                  $lookup: {
+                    from: "serviceproviders",
+                    let: { provider_id: "$provider_id" },
+                    pipeline: [
+                      {
+                        $match: {
+                          $expr: {
+                            $eq: ["$$provider_id", "$_id"]
+                          }
+                        }
+                      },
+                      { $set: { "password": 0 } },
+                      {
+                        $addFields:{pid: "$_id"}
+                      },
+                      {
+                        $project:{
+                          _id:0
+                        }
+                      },
+                      {
+                        $lookup: {
+                          from: "users",
+                          let: { user: "$user" },
+                          pipeline: [
+                            {
+                              $match: {
+                                $expr: {
+                                  $eq: ["$$user", "$_id"]
+                                }
+                              }
+                            }
+                          ],
+                          as: "user"
+                        }
+                      },
+                      {
+                        $addFields: {
+                          user: { $arrayElemAt: ["$user", 0] }
+                        }
+                      },
+                      {
+                        $replaceRoot: {
+                          newRoot: { $mergeObjects: ["$$ROOT", "$user"] }
+                        }
+                      },
+                      {
+                        $project: {
+                          user: 0,
+                          password: 0
+                        }
+                      }
+                    ],
+                    as: "provider"
+                  }
+                },
+                {
+                  $addFields: {
+                    provider: { $arrayElemAt: ["$provider", 0] }
+                  }
+                }
+        ]);
         return services;
     }
 }

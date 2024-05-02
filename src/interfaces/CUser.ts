@@ -1,3 +1,5 @@
+import { Ref } from "@tsed/mongoose";
+import { Category } from "../models/CategoryModel";
 
 export interface CUser{
     _id: string;
@@ -12,8 +14,11 @@ export interface CUser{
     email: string;
     latitude: number;
     longitude: number;
+    marriageDate:Date;
     field: string;
     user:any;
     createdByEmail:boolean;
     location:string;
+    marriageCalc:any;
+    category:Ref<Category>
 }
