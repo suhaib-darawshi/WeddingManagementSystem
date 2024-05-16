@@ -14,7 +14,6 @@ export class User {
   username:string;
 
   @Property()
-  @Unique()
   phone:{country:string, number:string};
 
   @Property()

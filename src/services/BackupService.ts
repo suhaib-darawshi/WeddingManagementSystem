@@ -15,6 +15,8 @@ import { Category } from "../models/CategoryModel";
 import { Address } from "../models/AddressModel";
 import { Gallery } from "../models/GalleryModel";
 import { Favorite } from "../models/FavoriteModel";
+import { Ad } from "../models/AdsModel";
+import { GNotification } from "../models/GNotificationModel";
 @Injectable()
 export class BackupService {
     
@@ -30,21 +32,22 @@ export class BackupService {
     @Inject(Category)private categoryModel:MongooseModel<Category>,
     @Inject(Address)private addressModel:MongooseModel<Address>,
     @Inject(Gallery)private galleryModel:MongooseModel<Gallery>,
-    @Inject(Favorite)private favoriteModel:MongooseModel<Favorite>
+    @Inject(Favorite)private favoriteModel:MongooseModel<Favorite>,
+    @Inject(Ad)private adModel:MongooseModel<Ad>,
+    @Inject(GNotification)private gnotificationModel:MongooseModel<GNotification>,
+    @Inject(Service)private serviceModel:MongooseModel<Service>
 
     ) {
         cron.schedule("0 0 * * *",this.performBackup.bind(this));
-     this.cloudDb = mongoose.createConnection('mongodb+srv://rafeed1sa:JCrIH9AY75E1R6Pq@rafeed.wx7a2zc.mongodb.net/?retryWrites=true&w=majority&appName=Rafeed');
+     this.cloudDb = mongoose.createConnection(process.env.CLOUD_URL!);
     // this.userModel = this.mongooseService.get("default")!.model("User");
     // this.backupUserModel = this.mongooseService.get("backup")!.model("User", User);   // backup database
   }
 
   async performBackup() {
     const lastBackupDate = new Date(Date.now() - (1000 * 60 * 60 * 24));
-
     await this.performBulkUpdate(this.messageModel, this.cloudDb.model('Message', getSchema(Message)), lastBackupDate);
     await this.performBulkUpdate(this.chatModel, this.cloudDb.model('Chat', getSchema(Chat)), lastBackupDate);
-    await this.performBulkUpdate(this.messageModel, this.cloudDb.model('Service', getSchema(Service)), lastBackupDate);
     await this.performBulkUpdate(this.ratingModel, this.cloudDb.model('Rating', getSchema(Rating)), lastBackupDate);
     await this.performBulkUpdate(this.orderModel, this.cloudDb.model('Order', getSchema(Order)), lastBackupDate);
     await this.performBulkUpdate(this.notificationModel, this.cloudDb.model('Notification', getSchema(Notification)), lastBackupDate);
@@ -54,7 +57,9 @@ export class BackupService {
     await this.performBulkUpdate(this.addressModel, this.cloudDb.model('Address', getSchema(Address)), lastBackupDate);
     await this.performBulkUpdate(this.galleryModel, this.cloudDb.model('Gallery', getSchema(Gallery)), lastBackupDate);
     await this.performBulkUpdate(this.favoriteModel, this.cloudDb.model('Favorite', getSchema(Favorite)), lastBackupDate);
-
+    await this.performBulkUpdate(this.adModel, this.cloudDb.model('Ad', getSchema(Ad)), lastBackupDate);
+    await this.performBulkUpdate(this.serviceModel, this.cloudDb.model('Service', getSchema(Service)), lastBackupDate);
+    await this.performBulkUpdate(this.gnotificationModel, this.cloudDb.model('GNotification', getSchema(GNotification)), lastBackupDate);
     console.log('Backup completed successfully');
 }
 

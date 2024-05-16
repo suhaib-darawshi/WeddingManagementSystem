@@ -116,7 +116,6 @@ export class CustomSocketService {
   onNewCustomer(user:any){
     for(const socket of this.admins){
       try{
-        console.log("emited");
         socket.emit("New Customer", user);
       }
       catch(e){
@@ -128,7 +127,6 @@ export class CustomSocketService {
     if(data['type']!="PROVIDER"){
       for(const socket of this.customers){
         try{
-          console.log("emited");
           socket.emit("New Notification", data);
         }
         catch(e){
@@ -136,10 +134,9 @@ export class CustomSocketService {
         }
       }
     }
-    else if(data['type']!="CUSTOMER"){
+    if(data['type']!="CUSTOMER"){
       for(const socket of this.providers){
         try{
-          console.log("emited");
           socket.emit("New Notification", data);
         }
         catch(e){
@@ -151,7 +148,6 @@ export class CustomSocketService {
   onNewProvider(provider:any){
     for(const socket of this.admins){
       try{
-        console.log("emited");
         socket.emit("New Provider", provider);
       }
       catch(e){
@@ -160,7 +156,6 @@ export class CustomSocketService {
     }
     for(const socket of this.customers){
       try{
-        console.log("emited");
         socket.emit("New Provider", provider);
       }
       catch(e){
@@ -171,7 +166,6 @@ export class CustomSocketService {
   onNewCategory(category:any){
     for(const socket of this.customers){
       try{
-        console.log("emited");
         socket.emit("New Category", category);
       }
       catch(e){
@@ -180,7 +174,6 @@ export class CustomSocketService {
     }
     for(const socket of this.providers){
       try{
-        console.log("emited");
         socket.emit("New Category", category);
       }
       catch(e){
@@ -189,7 +182,6 @@ export class CustomSocketService {
     }
     for(const socket of this.admins){
       try{
-        console.log("emited");
         socket.emit("New Category", category);
       }
       catch(e){
@@ -200,7 +192,6 @@ export class CustomSocketService {
   onNewService(service:any) {
     for(const socket of this.customers){
       try{
-        console.log("emited");
         socket.emit("New Service", service);
       }
       catch(e){
@@ -209,7 +200,6 @@ export class CustomSocketService {
     }
     for(const socket of this.admins){
       try{
-        console.log("emited");
         socket.emit("New Service", service);
       }
       catch(e){
@@ -220,7 +210,6 @@ export class CustomSocketService {
   onNewOrder(order:any){
     for(const socket of this.admins){
       try{
-        console.log("emited");
         socket.emit("New Order", order);
       }
       catch(e){
@@ -231,7 +220,6 @@ export class CustomSocketService {
   onNewAd(data:any){
     for(const socket of this.customers){
       try{
-        console.log("emited");
         socket.emit("Ads Updated", data);
       }
       catch(e){
@@ -240,7 +228,6 @@ export class CustomSocketService {
     }
     for(const socket of this.admins){
       try{
-        console.log("emited");
         socket.emit("Ads Updated", data);
       }
       catch(e){
@@ -251,7 +238,6 @@ export class CustomSocketService {
   onOrderUpdated(data:any){
     for(const socket of this.admins){
       try{
-        console.log("emited");
         socket.emit("Order Updated", data);
       }
       catch(e){

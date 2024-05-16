@@ -46,9 +46,7 @@ export class SProviderService {
       const user = await this.userModel.findById(id);
       if(!user) throw new  Exceptions.NotFound("User not found");
       if (file) {
-        if (fs.existsSync(user.logo)) {
-          fs.unlinkSync(user.logo); 
-      }
+        
           const originalExtension = path.extname(file.originalname)
           const uploadsDir = path.join( 'public', 'uploads', user._id.toString());
           if (!fs.existsSync(uploadsDir)) {
@@ -276,13 +274,13 @@ export class SProviderService {
     async signup(user:CUser){
         user.role="PROVIDER";
         const u=await this.userModel.findOne({$or:[
-            {phone:user.phone}
+            {phone:user.phone,role:user.role}
         ]});
         if(u){
             throw new Exceptions.Conflict("USER_ALREADY_EXIST");
         }
         const s=await this.sproviderModel.findOne({$or:[
-            {email:user.email},
+            {email:user.email,role:user.role},
         ]});
         if(s){
             throw new Exceptions.Conflict("EMAIL_ALREADY_EXIST");
@@ -302,16 +300,13 @@ export class SProviderService {
           let searchConditions = [];
 
       if (user.phone && user.phone.number) {
-          searchConditions.push({ "phone.number": user.phone.number });
+          searchConditions.push({ "phone.number": user.phone.number ,role:user.role});
       }
-      
-      
-      
       if (user.email) {
-          searchConditions.push({ email: user.email });
+          searchConditions.push({ email: user.email ,role:user.role});
       }
       
-      let u = await this.userModel.findOne({ $or: searchConditions }).lean();
+      let u = await this.userModel.findOne({ $or: searchConditions ,role:user.role}).lean();
       if(u){
         throw new Exceptions.Conflict("USER_ALREADY_EXIST");
       }
@@ -654,7 +649,22 @@ export class SProviderService {
             pipeline:[]
           }
         },
-            
+        {
+          $lookup:{
+            from:"settingsmodels",
+            as:"settings",
+            pipeline:[
+              {
+                $limit:1
+              }
+            ]
+          }
+        },
+        {
+          $addFields:{
+            settings:{$arrayElemAt:["$settings",0]}
+          }
+        },
             {
                 $limit: 1 
             }

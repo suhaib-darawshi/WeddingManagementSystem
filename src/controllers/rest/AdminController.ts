@@ -5,6 +5,7 @@ import { AdminMiddleware } from "../../middlewares/AdminMiddleware";
 import { Category } from "../../models/CategoryModel";
 import { AdminService } from "../../services/AdminService";
 import { GNotification } from "../../models/GNotificationModel";
+import { SettingsModel } from "../../models/SettingsModel";
 
 @Controller("/admin")
 export class AdminController {
@@ -20,6 +21,11 @@ export class AdminController {
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     const xfile= await this.adminService.getOrdersFile(orders);
     return xfile;
+  }
+  @Post("/settings")
+  @Use(AdminMiddleware)
+  updateSettings(@MultipartFile("file") file: PlatformMulterFile, @BodyParams() settings:SettingsModel){
+    return this.adminService.updateSettings(settings,file);
   }
   @Put("/category")
   // @Use(AdminMiddleware)

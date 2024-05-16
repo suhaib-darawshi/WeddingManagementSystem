@@ -49,5 +49,8 @@ export class Service {
 
   @Property()
   @Default(true)
-  autoAccept:boolean
+  autoAccept:boolean;
+  @Property()
+  @Default(0)
+  views:number;
 }

@@ -108,20 +108,20 @@ export class UserService {
           await user.save()
           return user;
         }
-    async updateProfile(id:string,user:User,file:PlatformMulterFile|null){
+    async updateProfile(id:string,user:any,file?:PlatformMulterFile){
       const oldUser = await this.userModel.findById(id);
       if(!oldUser) throw new Exceptions.BadRequest("USER_NOT_FOUND");
       if (file) {
-        if (fs.existsSync(oldUser.logo)) {
-          fs.unlinkSync(oldUser.logo); 
-      }
+        console.log("file")
         const originalExtension = path.extname(file.originalname)
         const uploadsDir = path.join( 'public', 'uploads', oldUser._id.toString());
         if (!fs.existsSync(uploadsDir)) {
             fs.mkdirSync(uploadsDir, { recursive: true });
+            console.log("file3")
         }
         const targetPath = path.join(uploadsDir, `logo${originalExtension}`);
         fs.writeFileSync(targetPath, file.buffer);
+        console.log("file4")
         user.logo = path.join('public','uploads', oldUser._id.toString(), `logo${originalExtension}`);
       }
       oldUser.logo=user.logo;
@@ -198,7 +198,7 @@ export class UserService {
     }
     async signup(user:CUser){
         const u=await this.userModel.findOne({$or:[
-            {phone:user.phone}
+            {phone:user.phone,role:user.role}
         ]});
         if(u){
             throw new Exceptions.Conflict("USER_ALREADY_EXIST");
@@ -261,7 +261,7 @@ export class UserService {
         if(u.role=="CUSTOMER"){
           // return (await this.sproviderService.getUserInfo(u) as Map<string,any>).set("token",this.auth.generateToken(u));
           const userData=await this.getUserInfo(u)
-          return {user : userData["user"],ads:userData['ads'],services:userData["categories"],ratings:userData["ratings"],providers:userData["providers"],others:userData["others"], token:this.auth.generateToken(u)};
+          return {user : userData["user"],ads:userData['ads'],settings:userData['settings'],services:userData["categories"],ratings:userData["ratings"],providers:userData["providers"],others:userData["others"], token:this.auth.generateToken(u)};
         }
         if(u.role=="ADMIN"){
           const userData=await this.adminService.getAdminData(u);
@@ -277,7 +277,7 @@ export class UserService {
       if(u.role=="CUSTOMER"){
         // return (await this.sproviderService.getUserInfo(u) as Map<string,any>).set("token",this.auth.generateToken(u));
         const userData=await this.getUserInfo(u)
-        return {user : userData["user"],ads:userData["ads"],services:userData["categories"],ratings:userData["ratings"],providers:userData["providers"],others:userData["others"], token:this.auth.generateToken(u)};
+        return {user : userData["user"],ads:userData["ads"],settings:userData["settings"],services:userData["categories"],ratings:userData["ratings"],providers:userData["providers"],others:userData["others"], token:this.auth.generateToken(u)};
       }
       if(u.role=="ADMIN"){
         const userData=await this.adminService.getAdminData(u);
@@ -1665,6 +1665,22 @@ export class UserService {
               ]
             }
           },
+          {
+            $lookup:{
+              from:"settingsmodels",
+              as:"settings",
+              pipeline:[
+                {
+                  $limit:1
+                }
+              ]
+            }
+          },
+          {
+            $addFields:{
+              settings:{$arrayElemAt:["$settings",0]}
+            }
+          },
             {
               $group: {
                   _id: "$_id",
@@ -1685,7 +1701,8 @@ export class UserService {
                   categories: { $first:"$categories"},
                   ads:{$first:"$ads"},
                   providers:{$first: "$providers"},
-                  others:{$first:"$otherS"}
+                  others:{$first:"$otherS"},
+                  settings:{$first:"$settings"}
               }
           },              
                                {
@@ -1706,6 +1723,7 @@ export class UserService {
                                 chats: "$chats" ,
                                 favorites:"$favorites"
                             },
+                            settings:"$settings",
                             ads:"$ads",
                             ratings:"$ratings",
                             categories: "$categories",
@@ -1725,12 +1743,12 @@ export class UserService {
         let searchConditions = [];
 
       if (user.phone && user.phone.number) {
-          searchConditions.push({ "phone.number": user.phone.number });
+          searchConditions.push({ "phone.number": user.phone.number,role:user.role });
       }
       
       
       if (user.email) {
-          searchConditions.push({ email: user.email });
+          searchConditions.push({ email: user.email,role:user.role });
       }
       
         const u=await this.userModel.findOne({ $or: searchConditions });

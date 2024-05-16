@@ -43,4 +43,7 @@ export class Order {
 
   @Ref(Rating)
   rating: Ref<Rating>;
+
+  @Property()
+  tip:{value:number,id:string};
 }

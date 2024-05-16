@@ -39,4 +39,9 @@ export class OrderController {
   completeOrder(@MultipartFile("file")file:PlatformMulterFile,@PathParams("id")id:string,@Req()req:Req){
     return this.bookingService.completeOrder(id,req.user!._id);
   }
+  @Put("/:id/tip")
+  @Use(JwtMiddleware)
+  putTip(@MultipartFile("file")file:PlatformMulterFile,@PathParams("id")id:string,@BodyParams()tip:{value:number,id:string}){
+    return this.bookingService.putTip(id,tip);
+  }
 }

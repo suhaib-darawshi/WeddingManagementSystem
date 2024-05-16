@@ -68,6 +68,6 @@ export class Server {
   @Configuration()
   protected settings: Configuration;
   async $onInit(): Promise<void>{
-    
+    // await this.backup.performBackup();
   }
 }

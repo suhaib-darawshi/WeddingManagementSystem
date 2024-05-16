@@ -45,6 +45,7 @@ export class BookingService {
         await order.save();
         await this.notService.createNotification({type:"Order Accepted",user_id:order.customer_id,message:`${(((order.service_id as Service).provider_id as ServiceProvider).user as User).username} قبل طلبك لخدمة ${(order.service_id as Service).title}`});
         this.socket.onOrderUpdated(order);
+        console.log((order.customer_id as User)._id.toString());
         this.socket.sendEventToClient(((order.customer_id as User)._id.toString()),order,"Order Accepted");
 
     }
@@ -56,6 +57,20 @@ export class BookingService {
         }
         order.status='COMPLETED';
         await order.save()
+        this.socket.sendEventToClient((order.customer_id as User)._id.toString(),order,"Order Completed");
+        return order;
+    }
+    async putTip(orderId:string,tip:{value:number,id:string}){
+        const order=await this.orderModel.findById(orderId).populate([{path:"service_id",model:"Service",populate:{model:"ServiceProvider",path:"provider_id",populate:{path:"user",model:"User"}}},{path:"customer_id",model:"User"}]);
+        if(!order) throw new BadRequest('Order not found');
+        order.tip=tip;
+        await order.save();
+        if(!tip.id) throw new Unauthorized("Payment Id is required for auto accept services");
+          const payment=await this.moyasarService.getPaymentInfo(tip.id);
+          if(payment?.status!=200 || payment.data.status!="paid"){
+            throw new Unauthorized("Payment Has Not Been Captured")
+          }
+        this.socket.sendEventToClient(((((order.service_id)as Service).provider_id as ServiceProvider).user as User)._id.toString(),order,"Tip");
         return order;
     }
     async rejecttOrder(orderId:string,user:string){

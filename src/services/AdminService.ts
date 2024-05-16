@@ -20,6 +20,7 @@ import { Message } from "../models/MessageModel";
 import { Rating } from "../models/RatingModel";
 import { Ad } from "../models/AdsModel";
 import * as ExcelJS from 'exceljs';
+import { SettingsModel } from "../models/SettingsModel";
 
 @Injectable()
 export class AdminService {
@@ -35,8 +36,32 @@ export class AdminService {
         @Inject(Chat)private chatModel:MongooseModel<Chat>,
         @Inject(Message)private messageModel:MongooseModel<Message>,
         @Inject(Rating)private ratingModel:MongooseModel<Rating>,
-        @Inject(Ad)private adsModel:MongooseModel<Ad>
+        @Inject(Ad)private adsModel:MongooseModel<Ad>,
+        @Inject(SettingsModel)private settingsModel:MongooseModel<SettingsModel>,
         ){}
+        async updateSettings(settings:Partial<SettingsModel>,file?:PlatformMulterFile){
+          if(file){
+            const originalExtension = path.extname(file.originalname)
+            const uploadsDir = path.join( 'public', 'settings');
+            if (!fs.existsSync(uploadsDir)) {
+                fs.mkdirSync(uploadsDir, { recursive: true });
+            }
+            const targetPath = path.join(uploadsDir, `logo${originalExtension}`);
+            fs.writeFileSync(targetPath, file.buffer);
+            settings.logo = path.join('public','settings', `logo${originalExtension}`);
+          }
+          const set=await this.settingsModel.findOne();
+          
+          if(set){
+            console.log(settings)
+            await this.settingsModel.findByIdAndUpdate(set._id,settings);
+            return this.settingsModel.findById(set._id);
+          }
+          else{
+            await this.settingsModel.create(settings);
+            return await this.settingsModel.findOne();
+          }
+        }
         async getOrdersFile(ids:string[]){
           const orders = await this.orderModel.find({
             '_id': { $in: ids }
@@ -1877,6 +1902,22 @@ export class AdminService {
                 }
               },
               {
+                $lookup:{
+                  from:"settingsmodels",
+                  as:"settings",
+                  pipeline:[
+                    {
+                      $limit:1
+                    }
+                  ]
+                }
+              },
+              {
+                $addFields:{
+                  settings:{$arrayElemAt:["$settings",0]}
+                }
+              },
+              {
                 $group: {
                     _id: "$_id",
                     username: { $first: "$username" },
@@ -1889,6 +1930,7 @@ export class AdminService {
                     orders: { $first: "$orders" },
                     chats: { $first: "$chats" },
                     ads:{$first:"$ads"},
+                    settings:{$first:"$settings"},
                     categories: { $first:"$categories"},
                     users:{$first:"$users"},
                     providers:{$first:"$providers"},
@@ -2169,6 +2211,7 @@ export class AdminService {
                             orders: "$orders",
                             users:"$users",
                             ads:"$ads",
+                            settings:"$settings",
                             providers:"$providers",
                             others:"$others"
                         }
