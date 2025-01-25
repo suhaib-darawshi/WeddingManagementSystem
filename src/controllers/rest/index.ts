@@ -4,6 +4,7 @@
 
 export * from "./AdminController";
 export * from "./ChatController";
+export * from "./HelloController";
 export * from "./OrderController";
 export * from "./SProviderController";
 export * from "./UserController";

@@ -31,6 +31,7 @@ export class CustomSocketService {
   }
   $onNamespaceInit(nsp: SocketIO.Namespace) {}
   $onConnection(@Socket socket: SocketIO.Socket, @SocketSession session: SocketSession) {
+    console.log("connected")
     socket.on("setId", (data: Client) => {
       if (!this.clients.has(data.id)){
         this.clients.set(data.id, [socket]);

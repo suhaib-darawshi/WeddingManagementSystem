@@ -241,8 +241,11 @@ export class UserService {
       
       
       if (user.email) {
-          searchConditions.push({ email: user.email,role:user.role });
-      }
+        searchConditions.push({ email: user.email,role:user.role });
+    }
+    if (user.username) {
+      searchConditions.push({ username: user.username,role:user.role });
+  }
       
       let u = await this.userModel.findOne({ $or: searchConditions }).lean();
       if(!u){

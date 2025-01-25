@@ -13,14 +13,14 @@ import * as Path from "path";
 @Configuration({
   ...config,
   acceptMimes: ["application/json"],
-  httpsOptions:{
-    key: fs.readFileSync(Path.join("key.pem"),'utf8'),
-    cert: fs.readFileSync(Path.join("cert.pem"),'utf8'),
-  },
-  httpsPort: parseInt(process.env.PORT!) , // CHANGE
-  httpPort:false,
-  // httpPort: parseInt(process.env.PORT!),
-  // httpsPort: false, 
+  // httpsOptions:{
+  //   key: fs.readFileSync(Path.join("key.pem"),'utf8'),
+  //   cert: fs.readFileSync(Path.join("cert.pem"),'utf8'),
+  // },
+  // httpsPort: parseInt(process.env.PORT!) , // CHANGE
+  // httpPort:false,
+  httpPort: parseInt(process.env.PORT!),
+  httpsPort: false, 
   disableComponentsScan: true,
   mount: {
     "/rest": [
